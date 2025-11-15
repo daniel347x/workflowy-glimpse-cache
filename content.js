@@ -103,11 +103,12 @@ function extractChildren(parentElement) {
     const childName = extractNodeName(childElement);
     const childNote = extractNodeNote(childElement);
     
-    // Check if node is expanded (has .children container with content)
-    const isExpanded = childElement.classList.contains('open');
+    // Check if node has children in DOM (more reliable than CSS class check)
+    const childrenContainer = childElement.querySelector(':scope > .children');
+    const hasChildren = childrenContainer && childrenContainer.children.length > 0;
     
-    // Recursively extract children if expanded
-    const grandchildren = isExpanded ? extractChildren(childElement) : [];
+    // Recursively extract children if present in DOM
+    const grandchildren = hasChildren ? extractChildren(childElement) : [];
     
     children.push({
       id: childId,
