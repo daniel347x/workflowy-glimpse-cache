@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Workflowy GLIMPSE Cache - Test Page</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .node { margin-left: 20px; border-left: 2px solid #ccc; padding-left: 10px; }
+    .name { font-weight: bold; }
+    .note { color: #666; font-style: italic; margin-top: 5px; }
+    button { padding: 10px 20px; margin: 10px; font-size: 14px; }
+    pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Workflowy GLIMPSE Cache - Test Page</h1>
+  
+  <h2>Mock Workflowy DOM Structure</h2>
+  
+  <!-- Simulated Workflowy DOM structure -->
+  <div id="app">
+    <div projectid="test-root-uuid" class="font-custom project open _pfk70">
+      <div class="name">
+        <div class="content">
+          <span class="innerContentContainer">🎯 Test ARC</span>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="content">
+          <span class="innerContentContainer">This is a test note field.
+Line 2 of note.
+Line 3 of note.</span>
+        </div>
+      </div>
+      <div class="children">
+        
+        <div projectid="test-child1-uuid" class="font-custom project open _pfk70">
+          <div class="name">
+            <div class="content">
+              <span class="innerContentContainer">📜 VYRTHEX LOG</span>
+            </div>
+          </div>
+          <div class="notes">
+            <div class="content"></div>
+          </div>
+          <div class="children">
+            
+            <div projectid="test-grandchild-uuid" class="font-custom project open _pfk70">
+              <div class="name">
+                <div class="content">
+                  <span class="innerContentContainer">🔥 VYRTHEX: Test Item</span>
+                </div>
+              </div>
+              <div class="notes">
+                <div class="content">
+                  <span class="innerContentContainer">Grandchild note here.</span>
+                </div>
+              </div>
+              <div class="children"></div>
+            </div>
+            
+          </div>
+        </div>
+        
+        <div projectid="test-child2-uuid" class="font-custom project collapsed _pfk70">
+          <div class="name">
+            <div class="content">
+              <span class="innerContentContainer">🎒 SATCHEL</span>
+            </div>
+          </div>
+          <div class="notes">
+            <div class="content"></div>
+          </div>
+          <!-- No .children div because collapsed -->
+        </div>
+        
+      </div>
+    </div>
+  </div>
+  
+  <h2>Test Controls</h2>
+  <button onclick="testExtraction()">Test DOM Extraction</button>
+  <button onclick="clearOutput()">Clear Output</button>
+  
+  <h2>Extraction Output</h2>
+  <pre id="output"></pre>
+  
+  <script src="content.js"></script>
+  <script>
+    function testExtraction() {
+      const result = extractDOMTree('test-root-uuid');
+      document.getElementById('output').textContent = JSON.stringify(result, null, 2);
+    }
+    
+    function clearOutput() {
+      document.getElementById('output').textContent = '';
+    }
+  </script>
+  
+</body>
+</html>

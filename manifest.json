@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Workflowy GLIMPSE Cache",
+  "version": "1.0",
+  "description": "Provides DOM-extracted GLIMPSE cache data to Python MCP server via WebSocket",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://workflowy.com/*",
+    "https://*.workflowy.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://workflowy.com/*",
+        "https://*.workflowy.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
