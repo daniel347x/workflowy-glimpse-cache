@@ -328,13 +328,19 @@
   }
 
   function initializeUuidHoverHelper() {
-    document.addEventListener('mouseover', (event) => {
+    const onHover = (event) => {
+      // Requirement: Must hold CTRL key to trigger the UUID copy
+      if (!event.ctrlKey) return;
+      
       const el = event.target.closest && event.target.closest('div[projectid]');
       if (!el) {
         return;
       }
       scheduleUuidCopy(el);
-    });
+    };
+
+    document.addEventListener('mouseover', onHover);
+    document.addEventListener('mousemove', onHover);
 
     document.addEventListener('mouseout', (event) => {
       const el = event.target.closest && event.target.closest('div[projectid]');
