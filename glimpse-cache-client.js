@@ -230,6 +230,7 @@
   let uuidHoverTimer = null;
   let uuidHoverElement = null;
   let uuidTooltipEl = null;
+  let ctrlKeyCurrentlyPressed = false;
 
   function ensureUuidTooltipElement() {
     if (uuidTooltipEl) return uuidTooltipEl;
@@ -314,7 +315,11 @@
     uuidHoverElement = el;
     clearTimeout(uuidHoverTimer);
     uuidHoverTimer = setTimeout(() => {
-      copyUuidForElement(el);
+      // Check CTRL key is STILL held when timer fires
+      // This allows: park mouse -> press CTRL -> wait -> copy
+      if (ctrlKeyCurrentlyPressed) {
+        copyUuidForElement(el);
+      }
     }, HOVER_DELAY_MS);
   }
 
@@ -328,14 +333,26 @@
   }
 
   function initializeUuidHoverHelper() {
+    // Track CTRL key state globally so we can check it when timer fires
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Control') {
+        ctrlKeyCurrentlyPressed = true;
+      }
+    });
+
+    document.addEventListener('keyup', (event) => {
+      if (event.key === 'Control') {
+        ctrlKeyCurrentlyPressed = false;
+      }
+    });
+
+    // Mouse hover logic - schedule copy when hovering over any node
     const onHover = (event) => {
-      // Requirement: Must hold CTRL key to trigger the UUID copy
-      if (!event.ctrlKey) return;
-      
       const el = event.target.closest && event.target.closest('div[projectid]');
       if (!el) {
         return;
       }
+      // Always schedule when hovering (CTRL check happens when timer fires)
       scheduleUuidCopy(el);
     };
 
