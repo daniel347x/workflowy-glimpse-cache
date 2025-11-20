@@ -221,15 +221,145 @@
     }
   }
   
-  // Wait for DOM to be ready, then connect
+  /**
+   * UUID Hover Helper - copy Workflowy node UUIDs without DevTools
+   * - After hovering a node for HOVER_DELAY_MS, attempts to copy its projectid
+   *   to the clipboard and shows a small inline tooltip near the node.
+   */
+  const HOVER_DELAY_MS = 3000;
+  let uuidHoverTimer = null;
+  let uuidHoverElement = null;
+  let uuidTooltipEl = null;
+
+  function ensureUuidTooltipElement() {
+    if (uuidTooltipEl) return uuidTooltipEl;
+    const el = document.createElement('div');
+    el.id = 'glimpse-uuid-tooltip';
+    el.style.position = 'absolute';
+    el.style.zIndex = '9999';
+    el.style.padding = '4px 8px';
+    el.style.background = 'rgba(0, 0, 0, 0.85)';
+    el.style.color = '#fff';
+    el.style.fontSize = '11px';
+    el.style.borderRadius = '4px';
+    el.style.pointerEvents = 'none';
+    el.style.maxWidth = '260px';
+    el.style.whiteSpace = 'nowrap';
+    el.style.overflow = 'hidden';
+    el.style.textOverflow = 'ellipsis';
+    el.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)';
+    el.style.display = 'none';
+    document.body.appendChild(el);
+    uuidTooltipEl = el;
+    return el;
+  }
+
+  function hideUuidTooltip() {
+    if (uuidTooltipEl) {
+      uuidTooltipEl.style.display = 'none';
+    }
+  }
+
+  function showUuidTooltip(targetEl, uuid, copied) {
+    const el = ensureUuidTooltipElement();
+    const rect = targetEl.getBoundingClientRect();
+    const status = copied ? 'Copied UUID:' : 'UUID:';
+    el.textContent = status + ' ' + uuid;
+    const top = window.scrollY + rect.top - 22;
+    const left = window.scrollX + rect.left + 16;
+    el.style.top = `${top}px`;
+    el.style.left = `${left}px`;
+    el.style.display = 'block';
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => {
+      hideUuidTooltip();
+    }, 3000);
+  }
+
+  function copyUuidForElement(el) {
+    const uuid = el.getAttribute('projectid');
+    if (!uuid) return;
+    const finish = (copied) => {
+      showUuidTooltip(el, uuid, copied);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(uuid).then(
+        () => finish(true),
+        () => finish(false)
+      );
+    } else {
+      try {
+        const tmp = document.createElement('textarea');
+        tmp.value = uuid;
+        tmp.style.position = 'fixed';
+        tmp.style.opacity = '0';
+        tmp.style.pointerEvents = 'none';
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+        finish(true);
+      } catch (err) {
+        console.warn('[GLIMPSE Cache] Clipboard copy failed:', err);
+        finish(false);
+      }
+    }
+  }
+
+  function scheduleUuidCopy(el) {
+    if (uuidHoverElement === el && uuidHoverTimer) {
+      return;
+    }
+    uuidHoverElement = el;
+    clearTimeout(uuidHoverTimer);
+    uuidHoverTimer = setTimeout(() => {
+      copyUuidForElement(el);
+    }, HOVER_DELAY_MS);
+  }
+
+  function cancelUuidCopyForElement(el) {
+    if (uuidHoverElement === el) {
+      clearTimeout(uuidHoverTimer);
+      uuidHoverTimer = null;
+      uuidHoverElement = null;
+      hideUuidTooltip();
+    }
+  }
+
+  function initializeUuidHoverHelper() {
+    document.addEventListener('mouseover', (event) => {
+      const el = event.target.closest && event.target.closest('div[projectid]');
+      if (!el) {
+        return;
+      }
+      scheduleUuidCopy(el);
+    });
+
+    document.addEventListener('mouseout', (event) => {
+      const el = event.target.closest && event.target.closest('div[projectid]');
+      if (!el) {
+        return;
+      }
+      const next = event.relatedTarget && event.relatedTarget.closest && event.relatedTarget.closest('div[projectid]');
+      if (next === el) {
+        return; // still inside same project node
+      }
+      cancelUuidCopyForElement(el);
+    });
+  }
+
+  // Wait for DOM to be ready, then connect and initialize helpers
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       console.log('[GLIMPSE Cache] DOM ready, connecting...');
       connectWebSocket();
+      initializeUuidHoverHelper();
     });
   } else {
     console.log('[GLIMPSE Cache] DOM already ready, connecting...');
     connectWebSocket();
+    initializeUuidHoverHelper();
   }
   
   console.log('[GLIMPSE Cache] ✅ Standalone client loaded');
