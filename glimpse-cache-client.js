@@ -8,7 +8,8 @@
 (function() {
   'use strict';
   
-  console.log('[GLIMPSE Cache] Standalone client initializing...');
+  const GLIMPSE_VERSION = '3.7.0';
+  console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
   let reconnectInterval = null;
@@ -157,13 +158,13 @@
     }
     
     isConnecting = true;
-    console.log('[GLIMPSE Cache] Connecting to', WS_URL);
+    console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Connecting to`, WS_URL);
     
     try {
       ws = new WebSocket(WS_URL);
       
       ws.onopen = () => {
-        console.log('[GLIMPSE Cache] ✅ Connected to Python MCP server');
+        console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ✅ Connected to Python MCP server`);
         isConnecting = false;
         
         if (reconnectInterval) {
@@ -173,22 +174,22 @@
         
         // Send initial ping to keep connection alive
         ws.send(JSON.stringify({action: 'ping'}));
-        console.log('[GLIMPSE Cache] Sent initial ping');
+        console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sent initial ping`);
       };
       
       ws.onmessage = (event) => {
         try {
           const request = JSON.parse(event.data);
-          console.log('[GLIMPSE Cache] 📩 Request from Python:', request.action);
+          console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] 📩 Request from Python:`, request.action);
           
           if (request.action === 'extract_dom') {
             const result = extractDOMTree(request.node_id);
             ws.send(JSON.stringify(result));
-            console.log('[GLIMPSE Cache] ✅ Sent response:', result.node_count || 0, 'nodes');
+            console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ✅ Sent response:`, result.node_count || 0, 'nodes');
           }
           
         } catch (error) {
-          console.error('[GLIMPSE Cache] Error handling message:', error);
+          console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Error handling message:`, error);
           ws.send(JSON.stringify({
             success: false,
             error: error.message
@@ -197,12 +198,12 @@
       };
       
       ws.onerror = (error) => {
-        console.error('[GLIMPSE Cache] WebSocket error:', error);
+        console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] WebSocket error:`, error);
         isConnecting = false;
       };
       
       ws.onclose = () => {
-        console.log('[GLIMPSE Cache] ⚠️ Disconnected from Python MCP server');
+        console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ⚠️ Disconnected from Python MCP server`);
         ws = null;
         isConnecting = false;
         
@@ -212,7 +213,7 @@
       };
       
     } catch (error) {
-      console.error('[GLIMPSE Cache] Failed to create WebSocket:', error);
+      console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Failed to create WebSocket:`, error);
       isConnecting = false;
       
       if (!reconnectInterval) {
@@ -225,12 +226,17 @@
    * UUID Hover Helper - copy Workflowy node UUIDs without DevTools
    * - After hovering a node for HOVER_DELAY_MS, attempts to copy its projectid
    *   to the clipboard and shows a small inline tooltip near the node.
+   * - Requires CTRL key to be held when timer fires (not just at hover start)
    */
-  const HOVER_DELAY_MS = 3000;
+  // Hover delay before UUID copy / tooltip activation.
+  // Increased from 2000ms → 5000ms to avoid accidental activations
+  // when using normal CTRL-based copy/paste operations in Workflowy.
+  const HOVER_DELAY_MS = 5000;
   let uuidHoverTimer = null;
   let uuidHoverElement = null;
   let uuidTooltipEl = null;
   let ctrlKeyCurrentlyPressed = false;
+  let shiftKeyCurrentlyPressed = false;
 
   function ensureUuidTooltipElement() {
     if (uuidTooltipEl) return uuidTooltipEl;
@@ -244,8 +250,11 @@
     el.style.fontSize = '11px';
     el.style.borderRadius = '4px';
     el.style.pointerEvents = 'none';
-    el.style.maxWidth = '260px';
-    el.style.whiteSpace = 'nowrap';
+    el.style.maxWidth = '800px';
+    el.style.maxHeight = '400px';
+    el.style.overflowY = 'auto';
+    el.style.whiteSpace = 'pre-wrap';
+    el.style.wordWrap = 'break-word';
     el.style.overflow = 'hidden';
     el.style.textOverflow = 'ellipsis';
     el.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -262,11 +271,47 @@
     }
   }
 
-  function showUuidTooltip(targetEl, uuid, copied) {
+  function showUuidTooltip(targetEl, uuid, copied, verboseMode) {
     const el = ensureUuidTooltipElement();
     const rect = targetEl.getBoundingClientRect();
-    const status = copied ? 'Copied UUID:' : 'UUID:';
-    el.textContent = status + ' ' + uuid;
+    
+    // Build hierarchical path (same as clipboard format)
+    const pathData = [];
+    let current = targetEl;
+    while (current) {
+      const name = extractNodeName(current) || 'Untitled';
+      const nodeUuid = current.getAttribute('projectid');
+      pathData.unshift({name, uuid: nodeUuid});
+      current = current.parentElement && current.parentElement.closest('div[projectid]');
+    }
+    
+    // Format tooltip to match clipboard (with inline backticks for ancestors)
+    const lines = [];
+    pathData.forEach((node, depth) => {
+      const prefix = '#'.repeat(depth + 1);
+      lines.push(`${prefix} ${node.name}`);
+      if (verboseMode) {
+        lines.push(`\`${node.uuid}\``);
+        lines.push('');
+      }
+    });
+    
+    // Always show final UUID with arrow indicator
+    if (verboseMode) {
+      lines.push('--> Use Leaf UUID:');
+      lines.push(`\`${uuid}\``);
+    } else {
+      lines.push('');
+      lines.push(`→ \`${uuid}\``);
+    }
+    
+    if (copied) {
+      lines.push('');
+      const mode = verboseMode ? ' (verbose)' : '';
+      lines.push(`✓ Copied${mode}`);
+    }
+    
+    el.textContent = lines.join('\n');
     const top = window.scrollY + rect.top - 22;
     const left = window.scrollX + rect.left + 16;
     el.style.top = `${top}px`;
@@ -275,50 +320,102 @@
     clearTimeout(el._hideTimer);
     el._hideTimer = setTimeout(() => {
       hideUuidTooltip();
-    }, 3000);
+    }, 10000);
   }
 
-  function copyUuidForElement(el) {
+  function copyUuidForElement(el, includeAllUuids) {
     const uuid = el.getAttribute('projectid');
     if (!uuid) return;
+    
+    // Build path from root to current node
+    const pathData = [];
+    let current = el;
+    while (current) {
+      const name = extractNodeName(current) || 'Untitled';
+      const nodeUuid = current.getAttribute('projectid');
+      pathData.unshift({name, uuid: nodeUuid});
+      current = current.parentElement && current.parentElement.closest('div[projectid]');
+    }
+    
+    // Format as Markdown
+    const lines = [];
+    pathData.forEach((node, depth) => {
+      const prefix = '#'.repeat(depth + 1);
+      lines.push(`${prefix} ${node.name}`);
+      if (includeAllUuids) {
+        lines.push(`\`${node.uuid}\``);
+        lines.push('');
+      }
+    });
+    
+    // Always show final UUID with arrow indicator
+    if (includeAllUuids) {
+      lines.push('--> Use Leaf UUID:');
+      lines.push(`\`${uuid}\``);
+    } else {
+      lines.push('');
+      lines.push(`→ \`${uuid}\``);
+    }
+    
+    const copyText = lines.join('\n');
+    
     const finish = (copied) => {
-      showUuidTooltip(el, uuid, copied);
+      showUuidTooltip(el, uuid, copied, includeAllUuids);
     };
+    
+    // Modern Clipboard API requires document focus - try to ensure it
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(uuid).then(
+      if (document.hasFocus && !document.hasFocus()) {
+        window.focus();
+      }
+      
+      navigator.clipboard.writeText(copyText).then(
         () => finish(true),
-        () => finish(false)
+        (err) => fallbackCopy(copyText, finish)
       );
     } else {
-      try {
-        const tmp = document.createElement('textarea');
-        tmp.value = uuid;
-        tmp.style.position = 'fixed';
-        tmp.style.opacity = '0';
-        tmp.style.pointerEvents = 'none';
-        document.body.appendChild(tmp);
-        tmp.select();
-        document.execCommand('copy');
-        document.body.removeChild(tmp);
-        finish(true);
-      } catch (err) {
-        console.warn('[GLIMPSE Cache] Clipboard copy failed:', err);
-        finish(false);
-      }
+      fallbackCopy(copyText, finish);
+    }
+  }
+  
+  function fallbackCopy(text, callback) {
+    try {
+      const tmp = document.createElement('textarea');
+      tmp.value = text;
+      tmp.style.position = 'fixed';
+      tmp.style.opacity = '0';
+      tmp.style.pointerEvents = 'none';
+      document.body.appendChild(tmp);
+      tmp.select();
+      tmp.focus(); // Explicitly focus the textarea
+      const success = document.execCommand('copy');
+      document.body.removeChild(tmp);
+      callback(success);
+    } catch (err) {
+      console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Fallback copy failed:`, err);
+      callback(false);
     }
   }
 
-  function scheduleUuidCopy(el) {
+  function scheduleUuidCopy(el, event) {
     if (uuidHoverElement === el && uuidHoverTimer) {
       return;
     }
     uuidHoverElement = el;
     clearTimeout(uuidHoverTimer);
+    
+    // Store the event so we can check modifiers later
+    const originalEvent = event;
+    
     uuidHoverTimer = setTimeout(() => {
-      // Check CTRL key is STILL held when timer fires
-      // This allows: park mouse -> press CTRL -> wait -> copy
-      if (ctrlKeyCurrentlyPressed) {
-        copyUuidForElement(el);
+      // Check CTRL either from preserved event OR from global tracker
+      const isCtrlPressed = originalEvent.ctrlKey || ctrlKeyCurrentlyPressed;
+      
+      if (isCtrlPressed) {
+        // Check SHIFT from both preserved event AND global tracker
+        const isShiftPressed = originalEvent.shiftKey || shiftKeyCurrentlyPressed;
+        console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] SHIFT check: event=${originalEvent.shiftKey}, global=${shiftKeyCurrentlyPressed}, final=${isShiftPressed}`);
+        copyUuidForElement(el, isShiftPressed);
       }
     }, HOVER_DELAY_MS);
   }
@@ -333,10 +430,13 @@
   }
 
   function initializeUuidHoverHelper() {
-    // Track CTRL key state globally so we can check it when timer fires
+    // Track CTRL and SHIFT key state globally
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Control') {
         ctrlKeyCurrentlyPressed = true;
+      }
+      if (event.key === 'Shift') {
+        shiftKeyCurrentlyPressed = true;
       }
     });
 
@@ -344,16 +444,19 @@
       if (event.key === 'Control') {
         ctrlKeyCurrentlyPressed = false;
       }
+      if (event.key === 'Shift') {
+        shiftKeyCurrentlyPressed = false;
+      }
     });
 
-    // Mouse hover logic - schedule copy when hovering over any node
+    // Mouse hover logic - always schedule (ALT check happens when timer fires)
     const onHover = (event) => {
       const el = event.target.closest && event.target.closest('div[projectid]');
       if (!el) {
         return;
       }
-      // Always schedule when hovering (CTRL check happens when timer fires)
-      scheduleUuidCopy(el);
+      
+      scheduleUuidCopy(el, event);
     };
 
     document.addEventListener('mouseover', onHover);
@@ -385,6 +488,6 @@
     initializeUuidHoverHelper();
   }
   
-  console.log('[GLIMPSE Cache] ✅ Standalone client loaded');
+  console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ✅ Standalone client loaded`);
   
 })();
