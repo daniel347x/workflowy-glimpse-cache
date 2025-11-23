@@ -229,14 +229,16 @@
    * - Requires CTRL key to be held when timer fires (not just at hover start)
    */
   // Hover delay before UUID copy / tooltip activation.
-  // Increased from 2000ms → 5000ms to avoid accidental activations
-  // when using normal CTRL-based copy/paste operations in Workflowy.
-  const HOVER_DELAY_MS = 5000;
+  // Back to 2000ms now that spurious activations are prevented by
+  // requiring Ctrl to be held for the full delay window.
+  const HOVER_DELAY_MS = 2000;
   let uuidHoverTimer = null;
   let uuidHoverElement = null;
   let uuidTooltipEl = null;
   let ctrlKeyCurrentlyPressed = false;
   let shiftKeyCurrentlyPressed = false;
+  let ctrlPressedAt = null;
+  const CTRL_MIN_HOLD_MS = HOVER_DELAY_MS; // require Ctrl held roughly as long as hover delay
 
   function ensureUuidTooltipElement() {
     if (uuidTooltipEl) return uuidTooltipEl;
@@ -404,17 +406,18 @@
     uuidHoverElement = el;
     clearTimeout(uuidHoverTimer);
     
-    // Store the event so we can check modifiers later
-    const originalEvent = event;
-    
     uuidHoverTimer = setTimeout(() => {
-      // Check CTRL either from preserved event OR from global tracker
-      const isCtrlPressed = originalEvent.ctrlKey || ctrlKeyCurrentlyPressed;
+      const now = Date.now();
+      const hasCtrlBeenHeldLongEnough =
+        ctrlKeyCurrentlyPressed &&
+        ctrlPressedAt !== null &&
+        (now - ctrlPressedAt) >= CTRL_MIN_HOLD_MS;
       
-      if (isCtrlPressed) {
-        // Check SHIFT from both preserved event AND global tracker
-        const isShiftPressed = originalEvent.shiftKey || shiftKeyCurrentlyPressed;
-        console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] SHIFT check: event=${originalEvent.shiftKey}, global=${shiftKeyCurrentlyPressed}, final=${isShiftPressed}`);
+      if (hasCtrlBeenHeldLongEnough) {
+        const isShiftPressed = shiftKeyCurrentlyPressed;
+        console.log(
+          `[GLIMPSE Cache v${GLIMPSE_VERSION}] CTRL held for ${now - ctrlPressedAt}ms, SHIFT=${isShiftPressed} c copying UUID path`
+        );
         copyUuidForElement(el, isShiftPressed);
       }
     }, HOVER_DELAY_MS);
@@ -433,7 +436,10 @@
     // Track CTRL and SHIFT key state globally
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Control') {
-        ctrlKeyCurrentlyPressed = true;
+        if (!ctrlKeyCurrentlyPressed) {
+          ctrlKeyCurrentlyPressed = true;
+          ctrlPressedAt = Date.now();
+        }
       }
       if (event.key === 'Shift') {
         shiftKeyCurrentlyPressed = true;
@@ -443,6 +449,7 @@
     document.addEventListener('keyup', (event) => {
       if (event.key === 'Control') {
         ctrlKeyCurrentlyPressed = false;
+        ctrlPressedAt = null;
       }
       if (event.key === 'Shift') {
         shiftKeyCurrentlyPressed = false;
