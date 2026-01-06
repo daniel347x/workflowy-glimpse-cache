@@ -1546,7 +1546,7 @@
       hideUuidTooltip(); // Hide tooltip when cursor moves
     });
 
-    // F2, F3, F4, F8, F9, and F10 keyup handlers
+    // F2, F3, F4, F8, F9, F10, and F11 keyup handlers
     document.addEventListener('keyup', (event) => {
       // F2 keyup: all UUIDs in path (instant)
       if (event.key === 'F2') {
@@ -1700,6 +1700,66 @@
         tooltip._hideTimer = setTimeout(() => {
           hideUuidTooltip();
         }, 5000);
+      }
+
+      // F11 keyup: refresh Cartographer FILE node in Workflowy from source
+      if (event.key === 'F11') {
+        event.preventDefault();
+
+        if (!lastMousePos) {
+          return;
+        }
+
+        const el = document.elementFromPoint(lastMousePos.x, lastMousePos.y);
+        const projectEl = el && el.closest('div[projectid]');
+
+        if (!projectEl) {
+          return;
+        }
+
+        // Require an active WebSocket connection
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          const tooltip = ensureUuidTooltipElement();
+          const rect = projectEl.getBoundingClientRect();
+          const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 20;
+          const left = window.scrollX + (lastMousePos ? lastMousePos.x : rect.left) + 16;
+          tooltip.style.top = `${top}px`;
+          tooltip.style.left = `${left}px`;
+          tooltip.textContent = 'GLIMPSE server unavailable (cannot refresh node).';
+          tooltip.style.display = 'block';
+          clearTimeout(tooltip._hideTimer);
+          tooltip._hideTimer = setTimeout(() => {
+            hideUuidTooltip();
+          }, 5000);
+          return;
+        }
+
+        const uuid = projectEl.getAttribute('projectid');
+        if (!uuid) {
+          return;
+        }
+
+        const name = extractNodeName(projectEl) || '';
+        const payload = {
+          action: 'refresh_file_node',
+          node_id: uuid,
+          node_name: name,
+        };
+        ws.send(JSON.stringify(payload));
+
+        // Immediate feedback while the server refreshes the file node.
+        const tooltip = ensureUuidTooltipElement();
+        const rect = projectEl.getBoundingClientRect();
+        const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 20;
+        const left = window.scrollX + (lastMousePos ? lastMousePos.x : rect.left) + 16;
+        tooltip.style.top = `${top}px`;
+        tooltip.style.left = `${left}px`;
+        tooltip.textContent = 'Refreshing file node in Workflowy...';
+        tooltip.style.display = 'block';
+        clearTimeout(tooltip._hideTimer);
+        tooltip._hideTimer = setTimeout(() => {
+          hideUuidTooltip();
+        }, 10000);
       }
     });
   }
