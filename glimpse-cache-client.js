@@ -98,18 +98,49 @@
     return nameHasNexusExpandTag(nameText);
   }
 
+  // Robust check: does this row have any Workflowy tag whose value starts with "#nexus--"?
+  // We look both at the plain text (for older structures) and at the .contentTag
+  // elements Workflowy uses for clickable tags (data-val="#tag").
+  function rowHasNexusExpandTag(row) {
+    if (!row) return false;
+
+    // First: fall back to the plain-text name check (historical behavior).
+    const nameText = extractNodeName(row);
+    if (nameHasNexusExpandTag(nameText)) {
+      return true;
+    }
+
+    // Second: inspect tag widgets rendered in the name container.
+    // Workflowy renders tags roughly as:
+    //   <span class="contentTag" data-val="#nexus--cartographer">#<span class="contentTagText">nexus--cartographer</span>...</span>
+    try {
+      const tagEls = row.querySelectorAll(':scope > .name .contentTag');
+      for (const tagEl of tagEls) {
+        const dataVal = (tagEl.getAttribute('data-val') || '').trim();
+        const textVal = (tagEl.textContent || '').trim();
+        if (dataVal.startsWith('#nexus--') || textVal.startsWith('#nexus--')) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // Non-fatal: if DOM structure changes, we simply fall back to text-only behavior.
+    }
+
+    return false;
+  }
+
   // Find all visible nodes whose name contains a #nexus-- tag (expansion)
   function findVisibleNexusExpandNodes() {
     const results = [];
     const rows = document.querySelectorAll('div[projectid]');
 
     rows.forEach(row => {
-      const name = extractNodeName(row);
-      if (!nameHasNexusExpandTag(name)) return;
+      if (!rowHasNexusExpandTag(row)) return;
 
       const id = extractItemIdFromDomNode(row);
       if (!id) return;
 
+      const name = extractNodeName(row);
       results.push({ id, name, el: row });
     });
 
