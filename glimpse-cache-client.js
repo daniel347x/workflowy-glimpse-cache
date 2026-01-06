@@ -1546,7 +1546,7 @@
       hideUuidTooltip(); // Hide tooltip when cursor moves
     });
 
-    // F2, F3, F4, F8, F9, F10, and F11 keyup handlers
+    // F2, F3, F4, F8, F9, F10, and F12 keyup handlers
     document.addEventListener('keyup', (event) => {
       // F2 keyup: all UUIDs in path (instant)
       if (event.key === 'F2') {
@@ -1702,8 +1702,8 @@
         }, 5000);
       }
 
-      // F11 keyup: refresh Cartographer FILE node in Workflowy from source
-      if (event.key === 'F11') {
+      // F12 keyup: refresh Cartographer FILE node in Workflowy from source
+      if (event.key === 'F12') {
         event.preventDefault();
 
         if (!lastMousePos) {
