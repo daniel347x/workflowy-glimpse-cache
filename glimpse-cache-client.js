@@ -1705,7 +1705,7 @@
       }
 
       // F10 keyup: collapse all visible #nexus-- roots (full subtree reset)
-      if (event.key === 'F9') {
+      if (event.key === 'F10') {
         event.preventDefault();
         collapseAllVisibleNexusRoots(DEFAULT_NEXUS_EXPAND_OPTIONS);
       }
