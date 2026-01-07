@@ -304,6 +304,90 @@
     });
   }
 
+  // Expand an entire subtree (top-down) under a given UUID
+  function expandSubtreeSafeById(id, {
+    maxDepth = 6,
+    maxNodes = 2000,
+    log = true,
+  } = {}) {
+    const root = WF.getItemById(id);
+    if (!root) {
+      console.warn(`[GLIMPSE Cache v${GLIMPSE_VERSION}] GLIMPSE-EXPAND: No item found for id ${id}`);
+      return;
+    }
+
+    console.log('[GLIMPSE F8] expandSubtreeSafeById: START', {
+      id,
+      name: root.getNameInPlainText(),
+      maxDepth,
+      maxNodes,
+    });
+
+    const queue = [{ item: root, depth: 0 }];
+    let count = 0;
+
+    while (queue.length && count < maxNodes) {
+      const { item, depth } = queue.shift();
+      const itemId = item.getId ? item.getId() : (item.data && item.data.id) || '(no-id)';
+      const itemName = item.getNameInPlainText ? item.getNameInPlainText() : (item.data && item.data.name) || '';
+
+      console.log('[GLIMPSE F8] expandSubtreeSafeById: visiting', {
+        id: itemId,
+        depth,
+        isExpanded: item.data && item.data.isExpanded,
+        name: itemName,
+      });
+
+      if (itemId === 'f40bb3be-a5aa-6457-f9a3-43ce6fa70eed') {
+        const rowEl = document.querySelector(`div[projectid="${itemId}"]`);
+        const domCollapsed = !!(rowEl && rowEl.classList.contains('collapsed'));
+        const visibleChildCount = rowEl
+          ? rowEl.querySelectorAll(':scope > .children > div[projectid]').length
+          : null;
+        console.log('[GLIMPSE F8] TARGET node before expandItem:', {
+          id: itemId,
+          depth,
+          isExpanded: item.data && item.data.isExpanded,
+          domCollapsed,
+          visibleChildCount,
+        });
+      }
+
+      // Avoid redundant expansions if already open
+      if (!item.data.isExpanded) {
+        WF.expandItem(item);
+
+        if (itemId === 'f40bb3be-a5aa-6457-f9a3-43ce6fa70eed') {
+          const rowElAfter = document.querySelector(`div[projectid="${itemId}"]`);
+          const domCollapsedAfter = !!(rowElAfter && rowElAfter.classList.contains('collapsed'));
+          const visibleChildCountAfter = rowElAfter
+            ? rowElAfter.querySelectorAll(':scope > .children > div[projectid]').length
+            : null;
+          console.log('[GLIMPSE F8] TARGET node after expandItem:', {
+            id: itemId,
+            depth,
+            domCollapsedAfter,
+            visibleChildCountAfter,
+          });
+        }
+      }
+
+      count++;
+      if (depth >= maxDepth) continue;
+
+      const children = item.getChildren();
+      for (const child of children) {
+        queue.push({ item: child, depth: depth + 1 });
+      }
+    }
+
+    if (log) {
+      console.log(
+        `[GLIMPSE Cache v${GLIMPSE_VERSION}] GLIMPSE-EXPAND: Expanded ${count} nodes (maxNodes=${maxNodes}, maxDepth=${maxDepth}) from "${root.getNameInPlainText()}"`
+      );
+    }
+  }
+
   // Allow external callers (e.g., MCP or DevTools) to trigger expansion or collapse
   window.GlimpseExpandNexusRoots = function(options) {
     expandAllVisibleNexusRoots(options);
