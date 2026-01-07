@@ -1082,8 +1082,8 @@
 
   // UUID Navigator widget
 
-  function generateRandomHash(length = 4) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  function generateRandomHash(length = 6) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
 
     if (window.crypto && window.crypto.getRandomValues) {
@@ -1296,7 +1296,7 @@
     hashBtn.textContent = 'hash';
     hashBtn.style.fontSize = '11px';
     hashBtn.addEventListener('click', () => {
-      const h = generateRandomHash(4);
+      const h = generateRandomHash(6);
 
       if (uuidNavigatorInputEl) {
         uuidNavigatorInputEl.value = h;
