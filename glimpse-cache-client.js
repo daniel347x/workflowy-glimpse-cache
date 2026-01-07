@@ -1081,6 +1081,27 @@
   }
 
   // UUID Navigator widget
+
+  function generateRandomHash(length = 4) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+
+    if (window.crypto && window.crypto.getRandomValues) {
+      const arr = new Uint32Array(length);
+      window.crypto.getRandomValues(arr);
+      for (let i = 0; i < length; i++) {
+        result += chars[arr[i] % chars.length];
+      }
+    } else {
+      for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+      }
+    }
+
+    return result;
+  }
+
+  // UUID Navigator widget
   function initializeUuidNavigator() {
     if (uuidNavigatorEl) return;
 
@@ -1271,6 +1292,26 @@
       }
     });
 
+    const hashBtn = document.createElement('button');
+    hashBtn.textContent = 'hash';
+    hashBtn.style.fontSize = '11px';
+    hashBtn.addEventListener('click', () => {
+      const h = generateRandomHash(4);
+
+      if (uuidNavigatorInputEl) {
+        uuidNavigatorInputEl.value = h;
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(h).catch((err) => {
+          console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Copy hash failed:`, err);
+          fallbackCopy(h, () => {});
+        });
+      } else {
+        fallbackCopy(h, () => {});
+      }
+    });
+
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const value = input.value.trim();
@@ -1315,6 +1356,7 @@
     row.appendChild(copyBtn);
     row.appendChild(copyUuidBtn);
     row.appendChild(clearBtn);
+    row.appendChild(hashBtn);
 
     const refreshBtn = document.createElement('button');
     refreshBtn.textContent = 'Refresh cache';
