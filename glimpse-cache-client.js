@@ -1711,6 +1711,7 @@
       }
 
       // F10 keyup: open associated code file (beacon-aware) in WindSurf
+      // Uses beacon_line from MCP server response for precise navigation.
       if (event.key === 'F10') {
         event.preventDefault();
 
