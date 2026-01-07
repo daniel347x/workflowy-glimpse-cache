@@ -1772,7 +1772,7 @@
         }, 5000);
       }
 
-      // F12 keyup: refresh Cartographer FILE node in Workflowy from source
+      // F12 keyup: refresh Cartographer FILE node or FOLDER subtree in Workflowy from source
       if (event.key === 'F12') {
         event.preventDefault();
 
@@ -1810,21 +1810,24 @@
         }
 
         const name = extractNodeName(projectEl) || '';
+        const isFolder = name.trim().startsWith('📂');
         const payload = {
-          action: 'refresh_file_node',
+          action: isFolder ? 'refresh_folder_node' : 'refresh_file_node',
           node_id: uuid,
           node_name: name,
         };
         ws.send(JSON.stringify(payload));
 
-        // Immediate feedback while the server refreshes the file node.
+        // Immediate feedback while the server refreshes the node or subtree.
         const tooltip = ensureUuidTooltipElement();
         const rect = projectEl.getBoundingClientRect();
         const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 20;
         const left = window.scrollX + (lastMousePos ? lastMousePos.x : rect.left) + 16;
         tooltip.style.top = `${top}px`;
         tooltip.style.left = `${left}px`;
-        tooltip.textContent = 'Refreshing file node in Workflowy...';
+        tooltip.textContent = isFolder
+          ? 'Refreshing folder subtree in Workflowy...'
+          : 'Refreshing file node in Workflowy...';
         tooltip.style.display = 'block';
         clearTimeout(tooltip._hideTimer);
         tooltip._hideTimer = setTimeout(() => {
