@@ -104,12 +104,9 @@
   function rowHasNexusExpandTag(row) {
     if (!row) return false;
 
-    const rowIdForLog = extractItemIdFromDomNode(row) || '(no-id)';
-
     // First: fall back to the plain-text name check (historical behavior).
     const nameText = extractNodeName(row);
     if (nameHasNexusExpandTag(nameText)) {
-      console.log(`[GLIMPSE F8] rowHasNexusExpandTag: TEXT match on ${rowIdForLog}:`, nameText);
       return true;
     }
 
@@ -122,12 +119,10 @@
         const dataVal = (tagEl.getAttribute('data-val') || '').trim();
         const textVal = (tagEl.textContent || '').trim();
         if (dataVal.startsWith('#nexus--') || textVal.startsWith('#nexus--')) {
-          console.log('[GLIMPSE F8] rowHasNexusExpandTag: TAG match on', rowIdForLog, 'dataVal=', dataVal, 'textVal=', textVal);
           return true;
         }
       }
     } catch (e) {
-      console.warn('[GLIMPSE F8] rowHasNexusExpandTag: tag inspection failed for', rowIdForLog, e);
       // Non-fatal: if DOM structure changes, we simply fall back to text-only behavior.
     }
 
@@ -139,8 +134,6 @@
     const results = [];
     const rows = document.querySelectorAll('div[projectid]');
 
-    console.log(`[GLIMPSE F8] findVisibleNexusExpandNodes: scanning ${rows.length} rows`);
-
     rows.forEach(row => {
       if (!rowHasNexusExpandTag(row)) return;
 
@@ -148,11 +141,9 @@
       if (!id) return;
 
       const name = extractNodeName(row);
-      console.log('[GLIMPSE F8] findVisibleNexusExpandNodes: CANDIDATE', { id, name });
       results.push({ id, name, el: row });
     });
 
-    console.log('[GLIMPSE F8] findVisibleNexusExpandNodes: TOTAL candidates =', results.length);
     return results;
   }
 
@@ -179,8 +170,6 @@
   function pruneNestedNexusRoots(nodes) {
     if (!nodes || nodes.length === 0) return [];
 
-    console.log('[GLIMPSE F8] pruneNestedNexusRoots: input nodes =', nodes.map(n => ({ id: n.id, name: n.name })));
-
     const byId = new Map();
     const keep = new Set();
 
@@ -197,7 +186,6 @@
       while (current) {
         const ancestorId = current.getAttribute('projectid');
         if (ancestorId && byId.has(ancestorId)) {
-          console.log('[GLIMPSE F8] pruneNestedNexusRoots: NODE', node.id, 'is nested under', ancestorId);
           // This node is nested under another #nexus-- root; drop it
           keep.delete(node.id);
           break;
@@ -208,8 +196,7 @@
 
     const pruned = nodes.filter(node => keep.has(node.id));
     console.log(
-      `[GLIMPSE Cache v${GLIMPSE_VERSION}] GLIMPSE-EXPAND: Found ${nodes.length} #nexus-- nodes, pruned to ${pruned.length} top-level roots.`,
-      'ROOTS =', pruned.map(n => ({ id: n.id, name: n.name }))
+      `[GLIMPSE Cache v${GLIMPSE_VERSION}] GLIMPSE-EXPAND: Found ${nodes.length} #nexus-- nodes, pruned to ${pruned.length} top-level roots.`
     );
     return pruned;
   }
@@ -222,21 +209,18 @@
 
   // Expand all visible top-level #nexus-- roots
   function expandAllVisibleNexusRoots(options) {
-    console.log('[GLIMPSE F8] expandAllVisibleNexusRoots: invoked with options =', options);
-
     const candidates = findVisibleNexusExpandNodes();
     const roots = pruneNestedNexusRoots(candidates);
 
     if (!roots.length) {
-      console.log('[GLIMPSE F8] GLIMPSE-EXPAND: No visible #nexus-- roots found.');
+      console.log('[GLIMPSE Cache] GLIMPSE-EXPAND: No visible #nexus-- roots found.');
       return;
     }
 
     const mergedOptions = Object.assign({}, DEFAULT_NEXUS_EXPAND_OPTIONS, options || {});
-    console.log('[GLIMPSE F8] GLIMPSE-EXPAND: Expanding #nexus-- ROOTS:', roots.map(r => ({ id: r.id, name: r.name })), 'with options', mergedOptions);
+    console.log('[GLIMPSE Cache] GLIMPSE-EXPAND: Expanding #nexus-- roots:', roots.map(r => r.name));
 
     roots.forEach(root => {
-      console.log('[GLIMPSE F8] GLIMPSE-EXPAND: Expanding root', root.id, root.name);
       expandSubtreeSafeById(root.id, mergedOptions);
     });
   }
@@ -316,61 +300,15 @@
       return;
     }
 
-    console.log('[GLIMPSE F8] expandSubtreeSafeById: START', {
-      id,
-      name: root.getNameInPlainText(),
-      maxDepth,
-      maxNodes,
-    });
-
     const queue = [{ item: root, depth: 0 }];
     let count = 0;
 
     while (queue.length && count < maxNodes) {
       const { item, depth } = queue.shift();
-      const itemId = item.getId ? item.getId() : (item.data && item.data.id) || '(no-id)';
-      const itemName = item.getNameInPlainText ? item.getNameInPlainText() : (item.data && item.data.name) || '';
 
-      console.log('[GLIMPSE F8] expandSubtreeSafeById: visiting', {
-        id: itemId,
-        depth,
-        isExpanded: item.data && item.data.isExpanded,
-        name: itemName,
-      });
-
-      if (itemId === 'f40bb3be-a5aa-6457-f9a3-43ce6fa70eed') {
-        const rowEl = document.querySelector(`div[projectid="${itemId}"]`);
-        const domCollapsed = !!(rowEl && rowEl.classList.contains('collapsed'));
-        const visibleChildCount = rowEl
-          ? rowEl.querySelectorAll(':scope > .children > div[projectid]').length
-          : null;
-        console.log('[GLIMPSE F8] TARGET node before expandItem:', {
-          id: itemId,
-          depth,
-          isExpanded: item.data && item.data.isExpanded,
-          domCollapsed,
-          visibleChildCount,
-        });
-      }
-
-      // Avoid redundant expansions if already open
-      if (!item.data.isExpanded) {
-        WF.expandItem(item);
-
-        if (itemId === 'f40bb3be-a5aa-6457-f9a3-43ce6fa70eed') {
-          const rowElAfter = document.querySelector(`div[projectid="${itemId}"]`);
-          const domCollapsedAfter = !!(rowElAfter && rowElAfter.classList.contains('collapsed'));
-          const visibleChildCountAfter = rowElAfter
-            ? rowElAfter.querySelectorAll(':scope > .children > div[projectid]').length
-            : null;
-          console.log('[GLIMPSE F8] TARGET node after expandItem:', {
-            id: itemId,
-            depth,
-            domCollapsedAfter,
-            visibleChildCountAfter,
-          });
-        }
-      }
+      // Always call expandItem – even if Workflowy thinks the node is already
+      // expanded, this guarantees we don't miss partially expanded branches.
+      WF.expandItem(item);
 
       count++;
       if (depth >= maxDepth) continue;
@@ -1763,7 +1701,6 @@
       // F8 keyup: expand all visible #nexus-- roots
       if (event.key === 'F8') {
         event.preventDefault();
-        console.log('[GLIMPSE F8] F8 keyup detected - expanding visible #nexus-- roots');
         expandAllVisibleNexusRoots(DEFAULT_NEXUS_EXPAND_OPTIONS);
       }
 
