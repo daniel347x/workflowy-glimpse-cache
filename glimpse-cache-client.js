@@ -1704,15 +1704,15 @@
         expandAllVisibleNexusRoots(DEFAULT_NEXUS_EXPAND_OPTIONS);
       }
 
-      // F9 keyup: collapse all visible #nexus-- roots (full subtree reset)
+      // F10 keyup: collapse all visible #nexus-- roots (full subtree reset)
       if (event.key === 'F9') {
         event.preventDefault();
         collapseAllVisibleNexusRoots(DEFAULT_NEXUS_EXPAND_OPTIONS);
       }
 
-      // F10 keyup: open associated code file (beacon-aware) in WindSurf
+      // F9 keyup: open associated code file (beacon-aware) in WindSurf
       // Uses beacon_line from MCP server response for precise navigation.
-      if (event.key === 'F10') {
+      if (event.key === 'F9') {
         event.preventDefault();
 
         if (!lastMousePos) {
