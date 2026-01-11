@@ -320,6 +320,12 @@
    * - If Workflowy search is active: extract only matching nodes + their ancestor paths
    * - If no search: extract based on expansion state (existing behavior)
    */
+  // @beacon[
+  //   id=extract-dom-tree@glimpse-ext,
+  //   slice_labels=f9-f12-handlers,glimpse-core,
+  //   kind=span,
+  //   comment=Main DOM extraction - converts visible Workflowy tree to JSON for MCP server,
+  // ]
   function extractDOMTree(nodeId) {
     console.log('[GLIMPSE Cache] 🔍 Extracting DOM tree for node:', nodeId);
     
@@ -376,10 +382,55 @@
   }
   
   function extractNodeName(element) {
+    // @beacon[
+    //   id=extract-node-name@glimpse-ext,
+    //   slice_labels=glimpse-core,
+    //   kind=span,
+    //   comment=Extract node name text from Workflowy DOM element,
+    // ]
+    // SPAN DEMO START: lines inside function, wrapped by span beacon
+    const spanDemoData = [
+      'SPAN_DEMO_01',
+      'SPAN_DEMO_02',
+      'SPAN_DEMO_03',
+      'SPAN_DEMO_04',
+      'SPAN_DEMO_05',
+      'SPAN_DEMO_06',
+      'SPAN_DEMO_07',
+      'SPAN_DEMO_08',
+      'SPAN_DEMO_09',
+      'SPAN_DEMO_10',
+      'SPAN_DEMO_11',
+      'SPAN_DEMO_12',
+      'SPAN_DEMO_13',
+      'SPAN_DEMO_14',
+      'SPAN_DEMO_15',
+      'SPAN_DEMO_16',
+      'SPAN_DEMO_17',
+      'SPAN_DEMO_18',
+      'SPAN_DEMO_19',
+      'SPAN_DEMO_20',
+      'SPAN_DEMO_21',
+      'SPAN_DEMO_22',
+      'SPAN_DEMO_23',
+      'SPAN_DEMO_24',
+      'SPAN_DEMO_25',
+    ];
+    void spanDemoData;
+    // @beacon-close[
+    //   id=extract-node-name@glimpse-ext,
+    // ]
+    // SPAN DEMO END
     const nameContainer = element.querySelector(':scope > .name > .content > .innerContentContainer');
     return nameContainer ? nameContainer.textContent.trim() : 'Untitled';
   }
   
+  // @beacon[
+  //   id=extract-node-note@glimpse-ext,
+  //   slice_labels=glimpse-core,
+  //   kind=span,
+  //   comment=Extract node note text from Workflowy DOM element,
+  // ]
   function extractNodeNote(element) {
     const noteContainer = element.querySelector(':scope > .notes > .content > .innerContentContainer');
     if (!noteContainer || !noteContainer.textContent.trim()) {
@@ -596,6 +647,12 @@
         console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sent initial ping`);
       };
       
+      // @beacon[
+      //   id=ws-onmessage@glimpse-ext,
+      //   slice_labels=f9-f12-handlers,
+      //   kind=span,
+      //   comment=WebSocket message handler - dispatches MCP server requests to client handlers,
+      // ]
       ws.onmessage = (event) => {
         try {
           const request = JSON.parse(event.data);
@@ -1718,6 +1775,12 @@
         collapseAllVisibleNexusRoots(DEFAULT_NEXUS_EXPAND_OPTIONS);
       }
 
+      // @beacon[
+      //   id=f9-handler@glimpse-ext,
+      //   slice_labels=f9-f12-handlers,
+      //   kind=span,
+      //   comment=F9 keyup handler - opens code file in WindSurf via MCP beacon resolution,
+      // ]
       // F9 keyup: open associated code file (beacon-aware) in WindSurf
       // Uses beacon_line from MCP server response for precise navigation.
       if (event.key === 'F9') {
@@ -1780,6 +1843,12 @@
         }, 5000);
       }
 
+      // @beacon[
+      //   id=f12-handler@glimpse-ext,
+      //   slice_labels=f9-f12-handlers,
+      //   kind=span,
+      //   comment=F12 keyup handler - refreshes Cartographer FILE/FOLDER from source via MCP,
+      // ]
       // F12 keyup: refresh Cartographer FILE node or FOLDER subtree in Workflowy from source
       if (event.key === 'F12') {
         event.preventDefault();
@@ -1818,11 +1887,13 @@
         }
 
         const name = extractNodeName(projectEl) || '';
+        const note = extractNodeNote(projectEl) || '';
         const isFolder = name.trim().startsWith('📂');
         const payload = {
           action: isFolder ? 'refresh_folder_node' : 'refresh_file_node',
           node_id: uuid,
           node_name: name,
+          node_note: note,
         };
         ws.send(JSON.stringify(payload));
 
