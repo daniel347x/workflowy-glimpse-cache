@@ -52,6 +52,12 @@
   }
 
   // Check if a node name contains the collapse tag "#collapse-nexus" (for full subtree reset)
+// @beacon[
+//   id=extract-node-name@23224,
+//   role=extract-node-name,
+//   slice_labels=glimpse-core,nexus-test,nexus-best,
+//   kind=ast,
+// ]
   function nameHasNexusCollapseTag(nameText) {
     if (!nameText) return false;
     const parts = nameText.split(/\s+/);
@@ -60,6 +66,12 @@
 
   // [DEPRECATED] kept for backwards compatibility if referenced elsewhere
   // prior nameHasNexusTag behavior: expansion only
+// @beacon[
+//   id=extract-node-name@22224,
+//   role=extract-node-name,
+//   slice_labels=glimpse-core,
+//   kind=ast,
+// ]
   function nameHasNexusTag(nameText) {
     return nameHasNexusExpandTag(nameText);
   }
@@ -67,6 +79,13 @@
   // Robust check: does this row have any Workflowy tag whose value starts with "#nexus--"?
   // We look both at the plain text (for older structures) and at the .contentTag
   // elements Workflowy uses for clickable tags (data-val="#tag").
+// @beacon[
+//   id=extract-node-name@22225,
+//   role=extract-node-name,
+//   slice_labels=glimpse-core,
+//   kind=ast,
+//   comment=foo,
+// ]
   function rowHasNexusExpandTag(row) {
     if (!row) return false;
 
@@ -323,7 +342,7 @@
   // @beacon[
   //   id=extract-dom-tree@glimpse-ext,
   //   slice_labels=f9-f12-handlers,glimpse-core,
-  //   kind=span,
+  //   kind=ast,
   //   comment=Main DOM extraction - converts visible Workflowy tree to JSON for MCP server,
   // ]
   function extractDOMTree(nodeId) {
@@ -428,7 +447,7 @@
   // @beacon[
   //   id=extract-node-note@glimpse-ext,
   //   slice_labels=glimpse-core,
-  //   kind=span,
+  //   kind=ast,
   //   comment=Extract node note text from Workflowy DOM element,
   // ]
   function extractNodeNote(element) {
@@ -687,6 +706,9 @@
           }
         }
       };
+      // @beacon-close[
+      //   id=ws-onmessage@glimpse-ext,
+      // ]
       
       ws.onerror = (error) => {
         console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] WebSocket error:`, error);
@@ -1389,7 +1411,7 @@
     refreshBtn.style.cursor = 'pointer';
     refreshBtn.style.fontSize = '10px';
     refreshBtn.style.padding = '0';
-    refreshBtn.style.margin = '0 0 4px 0';
+    refreshBtn.style.margin = '0 4px 4px 0';
     refreshBtn.addEventListener('click', () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         if (uuidNavigatorOutputEl) {
@@ -1404,6 +1426,34 @@
       if (uuidNavigatorOutputEl) {
         uuidNavigatorOutputEl.style.display = 'block';
         uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache...';
+      }
+    });
+
+    const saveCacheBtn = document.createElement('button');
+    saveCacheBtn.textContent = 'Save cache';
+    saveCacheBtn.style.background = 'transparent';
+    saveCacheBtn.style.border = 'none';
+    saveCacheBtn.style.color = '#ccc';
+    saveCacheBtn.style.cursor = 'pointer';
+    saveCacheBtn.style.fontSize = '10px';
+    saveCacheBtn.style.padding = '0';
+    saveCacheBtn.style.margin = '0 0 4px 0';
+    saveCacheBtn.addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (uuidNavigatorOutputEl) {
+          uuidNavigatorOutputEl.style.display = 'block';
+          uuidNavigatorOutputEl.textContent = 'WebSocket not connected (cannot save cache).';
+        }
+        return;
+      }
+
+      const payload = { action: 'save_nodes_export_cache' };
+      console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sending save_nodes_export_cache request`);
+      ws.send(JSON.stringify(payload));
+
+      if (uuidNavigatorOutputEl) {
+        uuidNavigatorOutputEl.style.display = 'block';
+        uuidNavigatorOutputEl.textContent = 'Saving /nodes-export cache snapshot...';
       }
     });
 
@@ -1425,6 +1475,7 @@
     container.appendChild(header);
     container.appendChild(row);
     container.appendChild(refreshBtn);
+    container.appendChild(saveCacheBtn);
     container.appendChild(output);
 
     document.body.appendChild(container);
@@ -1671,6 +1722,25 @@
     uuidNavigatorOutputEl.textContent = `Cache refreshed successfully. nodes=${count}`;
   }
 
+  function handleSaveCacheResult(message) {
+    console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] save_nodes_export_cache_result:`, message);
+    if (!uuidNavigatorOutputEl) return;
+
+    uuidNavigatorOutputEl.style.display = 'block';
+    uuidNavigatorExpanded = true;
+    if (uuidNavigatorToggleEl) {
+      uuidNavigatorToggleEl.textContent = '▾';
+    }
+
+    if (!message.success) {
+      uuidNavigatorOutputEl.textContent = `Cache save failed: ${message.error || 'Unknown error'}`;
+      return;
+    }
+
+    const path = message.snapshot_path || '(path unavailable)';
+    uuidNavigatorOutputEl.textContent = `Cache snapshot saved.\n${path}`;
+  }
+
   // Removed: timer-based scheduling (replaced with Ctrl-keyup check)
 
   function initializeUuidHoverHelper() {
@@ -1842,6 +1912,9 @@
           hideUuidTooltip();
         }, 5000);
       }
+      // @beacon-close[
+      //   id=f9-handler@glimpse-ext,
+      // ]
 
       // @beacon[
       //   id=f12-handler@glimpse-ext,
@@ -1913,6 +1986,9 @@
           hideUuidTooltip();
         }, 10000);
       }
+      // @beacon-close[
+      //   id=f12-handler@glimpse-ext,
+      // ]
     });
   }
 
