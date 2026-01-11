@@ -22,44 +22,10 @@
   // 🔎 NEXUS-ROOT EXPANSION HELPERS (#nexus-- tags)
   // ------------------------------------------------------------
 
-  // Safely expand a subtree given a Workflowy UUID
-  function expandSubtreeSafeById(id, {
-    maxDepth = 6,
-    maxNodes = 2000,
-    log = true,
-  } = {}) {
-    const root = WF.getItemById(id);
-    if (!root) {
-      console.warn(`[GLIMPSE Cache v${GLIMPSE_VERSION}] GLIMPSE-EXPAND: No item found for id ${id}`);
-      return;
-    }
-
-    const queue = [{ item: root, depth: 0 }];
-    let count = 0;
-
-    while (queue.length && count < maxNodes) {
-      const { item, depth } = queue.shift();
-
-      // Avoid redundant expansions if already open
-      if (!item.data.isExpanded) {
-        WF.expandItem(item);
-      }
-
-      count++;
-      if (depth >= maxDepth) continue;
-
-      const children = item.getChildren();
-      for (const child of children) {
-        queue.push({ item: child, depth: depth + 1 });
-      }
-    }
-
-    if (log) {
-      console.log(
-        `[GLIMPSE Cache v${GLIMPSE_VERSION}] GLIMPSE-EXPAND: Expanded ${count} nodes (maxNodes=${maxNodes}, maxDepth=${maxDepth}) from "${root.getNameInPlainText()}"`
-      );
-    }
-  }
+  // REMOVED: Obsolete expandSubtreeSafeById with isExpanded guard.
+  // The working version (below) unconditionally calls WF.expandItem(item)
+  // to handle tag-filtered views where isExpanded=true but children are
+  // only partially visible.
 
   // Extract Workflowy UUID from a DOM node representing a bullet row
   function extractItemIdFromDomNode(node) {
