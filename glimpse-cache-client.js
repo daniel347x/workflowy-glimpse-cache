@@ -66,19 +66,19 @@
 
   // [DEPRECATED] kept for backwards compatibility if referenced elsewhere
   // prior nameHasNexusTag behavior: expansion only
-// @beacon[
-//   id=extract-node-name@22224,
-//   role=extract-node-name,
-//   slice_labels=glimpse-core,
-//   kind=ast,
-// ]
+  // @beacon[
+  //   id=extract-node-name@222246,
+  //   role=extract-node-name,
+  //   slice_labels=glimpse-core,
+  //   kind=ast,
+  // ]
   function nameHasNexusTag(nameText) {
     return nameHasNexusExpandTag(nameText);
   }
 
   // Robust check: does this row have any Workflowy tag whose value starts with "#nexus--"?
   // We look both at the plain text (for older structures) and at the .contentTag
-  // elements Workflowy uses for clickable tags (data-val="#tag").
+  // elements Workflowy uses for clickable tags (data-val="#tag")...
 // @beacon[
 //   id=extract-node-name@22225,
 //   role=extract-node-name,
@@ -115,6 +115,12 @@
   }
 
   // Find all visible nodes whose name contains a #nexus-- tag (expansion)
+  // @beacon[
+  //   id=auto-beacon@findVisibleNexusExpandNodes-rlf8,
+  //   role=findVisibleNexusExpandNodes,
+  //   slice_labels=nexus-test,
+  //   kind=ast,
+  // ]
   function findVisibleNexusExpandNodes() {
     const results = [];
     const rows = document.querySelectorAll('div[projectid]');
@@ -152,6 +158,12 @@
 
   // Prune nested NEXUS-tagged nodes so we only operate on highest-level roots
   // among the currently visible set.
+// @beacon[
+//   id=auto-beacon@pruneNestedNexusRoots,
+//   role=pruneNestedNexusRoots,
+//   slice_labels=pruneNestedNexusRoots,nexus-test--foo,
+//   kind=ast,
+// ]
   function pruneNestedNexusRoots(nodes) {
     if (!nodes || nodes.length === 0) return [];
 
@@ -193,6 +205,12 @@
   };
 
   // Expand all visible top-level #nexus-- roots
+// @beacon[
+//   id=auto-beacon@expandAllVisibleNexusRoots,
+//   role=expandAllVisibleNexusRoots,
+//   slice_labels=expandAllVisibleNexusRoots,nexus-test,
+//   kind=ast,
+// ]
   function expandAllVisibleNexusRoots(options) {
     const candidates = findVisibleNexusExpandNodes();
     const roots = pruneNestedNexusRoots(candidates);
@@ -339,12 +357,13 @@
    * - If Workflowy search is active: extract only matching nodes + their ancestor paths
    * - If no search: extract based on expansion state (existing behavior)
    */
-  // @beacon[
-  //   id=extract-dom-tree@glimpse-ext,
-  //   slice_labels=f9-f12-handlers,glimpse-core,
-  //   kind=ast,
-  //   comment=Main DOM extraction - converts visible Workflowy tree to JSON for MCP server,
-  // ]
+// @beacon[
+//   id=extract-dom-tree@glimpse-ext,
+//   role=extract-dom-tree,
+//   slice_labels=f9-f12-handlers,glimpse-core,nexus-foo-foo-foo,#nexus-test,
+//   kind=ast,
+//   comment=Main DOM extraction - converts visible Workflowy tree to JSON for MCP server - are commas allowed?, let me TEST that,
+// ]
   function extractDOMTree(nodeId) {
     console.log('[GLIMPSE Cache] 🔍 Extracting DOM tree for node:', nodeId);
     
@@ -444,12 +463,13 @@
     return nameContainer ? nameContainer.textContent.trim() : 'Untitled';
   }
   
-  // @beacon[
-  //   id=extract-node-note@glimpse-ext,
-  //   slice_labels=glimpse-core,
-  //   kind=ast,
-  //   comment=Extract node note text from Workflowy DOM element,
-  // ]
+// @beacon[
+//   id=extract-node-note@glimpse-ext,
+//   role=extract-node-note,
+//   slice_labels=glimpse-core,nexus-test-again,nexus-bad,
+//   kind=ast,
+//   comment=Extract node note text from Workflowy DOM element,
+// ]
   function extractNodeNote(element) {
     const noteContainer = element.querySelector(':scope > .notes > .content > .innerContentContainer');
     if (!noteContainer || !noteContainer.textContent.trim()) {
@@ -459,12 +479,24 @@
   }
 
   // Dewhiten HTML entities: &lt; &gt; &amp; → < > &
+  // @beacon[
+  //   id=auto-beacon@dewhitenText-ol8k,
+  //   role=dewhitenText,
+  //   slice_labels=dewhitenText,nexus-test,
+  //   kind=ast,
+  // ]
   function dewhitenText(text) {
     if (!text || typeof text !== 'string') return text;
     return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   }
 
   // Markup-preserving variants for GLIMPSE JSON (do not strip HTML tags).
+// @beacon[
+//   id=auto-beacon@extractNodeNameHtml,
+//   role=extractNodeNameHtml,
+//   slice_labels=extractNodeNameHtml,nexus-test-again,
+//   kind=ast,
+// ]
   function extractNodeNameHtml(element) {
     const nameContainer = element.querySelector(':scope > .name > .content > .innerContentContainer');
     if (!nameContainer) {
@@ -478,6 +510,12 @@
     return dewhitenText(nameContainer.innerHTML);
   }
 
+  // @beacon[
+  //   id=auto-beacon@extractNodeNoteHtml,
+  //   role=extractNodeNoteHtml,
+  //   slice_labels=extractNodeNoteHtml,nexus-test,
+  //   kind=ast,
+  // ]
   function extractNodeNoteHtml(element) {
     const noteContainer = element.querySelector(':scope > .notes > .content > .innerContentContainer');
     if (!noteContainer) {
@@ -496,6 +534,12 @@
    * Returns hierarchical structure containing only nodes that match the search,
    * plus their ancestor path elements (for context and proper nesting).
    */
+  // @beacon[
+  //   id=auto-beacon@extractSearchResults-v534,
+  //   role=extractSearchResults,
+  //   slice_labels=extractSearchResults,nexus-foo,
+  //   kind=ast,
+  // ]
   function extractSearchResults(rootElement, useHtml = false) {
     const results = [];
     const processedIds = new Set();
@@ -561,6 +605,12 @@
     return results;
   }
   
+// @beacon[
+//   id=auto-beacon@extractChildren,
+//   role=extractChildren,
+//   slice_labels=extractChildren,nexus-test-3,
+//   kind=ast,
+// ]
   function extractChildren(parentElement, useHtml = false) {
     const children = [];
     const childrenContainer = parentElement.querySelector(':scope > .children');
@@ -600,6 +650,12 @@
     return children;
   }
   
+// @beacon[
+//   id=auto-beacon@countNodesRecursive,
+//   role=countNodesRecursive,
+//   slice_labels=countNodesRecursive,nexus-test-2,
+//   kind=ast,
+// ]
   function countNodesRecursive(nodes) {
     let count = nodes.length;
     nodes.forEach(node => {
@@ -758,6 +814,13 @@
   // (verbose) mode rather than compact mode.
   let uuidNavigatorFullMode = false;
 
+  // @beacon[
+  //   id=auto-beacon@ensureUuidTooltipElement-pm6x,
+  //   role=ensureUuidTooltipElement,
+  //   slice_labels=ensureUuidTooltipElement,nexus-foo,nexus--too,
+  //   kind=ast,
+  //   comment=A [set of tags] here,
+  // ]
   function ensureUuidTooltipElement() {
     if (uuidTooltipEl) return uuidTooltipEl;
     const el = document.createElement('div');
@@ -1411,7 +1474,7 @@
     refreshBtn.style.cursor = 'pointer';
     refreshBtn.style.fontSize = '10px';
     refreshBtn.style.padding = '0';
-    refreshBtn.style.margin = '0 4px 4px 0';
+    refreshBtn.style.margin = '0 0 4px 0';
     refreshBtn.addEventListener('click', () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         if (uuidNavigatorOutputEl) {
@@ -1426,34 +1489,6 @@
       if (uuidNavigatorOutputEl) {
         uuidNavigatorOutputEl.style.display = 'block';
         uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache...';
-      }
-    });
-
-    const saveCacheBtn = document.createElement('button');
-    saveCacheBtn.textContent = 'Save cache';
-    saveCacheBtn.style.background = 'transparent';
-    saveCacheBtn.style.border = 'none';
-    saveCacheBtn.style.color = '#ccc';
-    saveCacheBtn.style.cursor = 'pointer';
-    saveCacheBtn.style.fontSize = '10px';
-    saveCacheBtn.style.padding = '0';
-    saveCacheBtn.style.margin = '0 0 4px 0';
-    saveCacheBtn.addEventListener('click', () => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        if (uuidNavigatorOutputEl) {
-          uuidNavigatorOutputEl.style.display = 'block';
-          uuidNavigatorOutputEl.textContent = 'WebSocket not connected (cannot save cache).';
-        }
-        return;
-      }
-
-      const payload = { action: 'save_nodes_export_cache' };
-      console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sending save_nodes_export_cache request`);
-      ws.send(JSON.stringify(payload));
-
-      if (uuidNavigatorOutputEl) {
-        uuidNavigatorOutputEl.style.display = 'block';
-        uuidNavigatorOutputEl.textContent = 'Saving /nodes-export cache snapshot...';
       }
     });
 
@@ -1475,7 +1510,6 @@
     container.appendChild(header);
     container.appendChild(row);
     container.appendChild(refreshBtn);
-    container.appendChild(saveCacheBtn);
     container.appendChild(output);
 
     document.body.appendChild(container);
@@ -1722,25 +1756,6 @@
     uuidNavigatorOutputEl.textContent = `Cache refreshed successfully. nodes=${count}`;
   }
 
-  function handleSaveCacheResult(message) {
-    console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] save_nodes_export_cache_result:`, message);
-    if (!uuidNavigatorOutputEl) return;
-
-    uuidNavigatorOutputEl.style.display = 'block';
-    uuidNavigatorExpanded = true;
-    if (uuidNavigatorToggleEl) {
-      uuidNavigatorToggleEl.textContent = '▾';
-    }
-
-    if (!message.success) {
-      uuidNavigatorOutputEl.textContent = `Cache save failed: ${message.error || 'Unknown error'}`;
-      return;
-    }
-
-    const path = message.snapshot_path || '(path unavailable)';
-    uuidNavigatorOutputEl.textContent = `Cache snapshot saved.\n${path}`;
-  }
-
   // Removed: timer-based scheduling (replaced with Ctrl-keyup check)
 
   function initializeUuidHoverHelper() {
@@ -1845,12 +1860,6 @@
         collapseAllVisibleNexusRoots(DEFAULT_NEXUS_EXPAND_OPTIONS);
       }
 
-      // @beacon[
-      //   id=f9-handler@glimpse-ext,
-      //   slice_labels=f9-f12-handlers,
-      //   kind=span,
-      //   comment=F9 keyup handler - opens code file in WindSurf via MCP beacon resolution,
-      // ]
       // F9 keyup: open associated code file (beacon-aware) in WindSurf
       // Uses beacon_line from MCP server response for precise navigation.
       if (event.key === 'F9') {
@@ -1916,12 +1925,6 @@
       //   id=f9-handler@glimpse-ext,
       // ]
 
-      // @beacon[
-      //   id=f12-handler@glimpse-ext,
-      //   slice_labels=f9-f12-handlers,
-      //   kind=span,
-      //   comment=F12 keyup handler - refreshes Cartographer FILE/FOLDER from source via MCP,
-      // ]
       // F12 keyup: refresh Cartographer FILE node or FOLDER subtree in Workflowy from source
       if (event.key === 'F12') {
         event.preventDefault();
@@ -1986,9 +1989,6 @@
           hideUuidTooltip();
         }, 10000);
       }
-      // @beacon-close[
-      //   id=f12-handler@glimpse-ext,
-      // ]
     });
   }
 
@@ -1997,6 +1997,12 @@
     let debounceTimer = null;
     const DEBOUNCE_MS = 800;
 
+    // @beacon[
+    //   id=auto-beacon@initializeMutationNotifications.scheduleNotify-tmwo,
+    //   role=initializeMutationNotifications.scheduleNotify,
+    //   slice_labels=initializeMutationNotifications-scheduleNotify,nexus-test,
+    //   kind=ast,
+    // ]
     function scheduleNotify(uuid) {
       if (!uuid) return;
       pending.add(uuid);
