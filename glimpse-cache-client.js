@@ -697,6 +697,12 @@
   /**
    * Connect to Python MCP WebSocket server
    */
+  // @beacon[
+  //   id=auto-beacon@connectWebSocket-fh7i,
+   //   role=connectWebSocket,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function connectWebSocket() {
     if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) {
       return;
@@ -720,11 +726,26 @@
         // Send initial ping to keep connection alive
         ws.send(JSON.stringify({action: 'ping'}));
         console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sent initial ping`);
+
+        // Start polling for CARTO_REFRESH job status once per second (best-effort)
+        if (!cartoJobsInterval) {
+          cartoJobsInterval = setInterval(() => {
+            try {
+              if (!ws || ws.readyState !== WebSocket.OPEN) {
+                return;
+              }
+              ws.send(JSON.stringify({ action: 'carto_list_jobs' }));
+            } catch (err) {
+              console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] carto_list_jobs poll failed:`, err);
+            }
+          }, 1000);
+        }
       };
       
       // @beacon[
       //   id=ws-onmessage@glimpse-ext,
-      //   slice_labels=f9-f12-handlers,
+      //   role=ws-onmessage,
+      //   slice_labels=f9-f12-handlers,ra-websocket,
       //   kind=span,
       //   comment=WebSocket message handler - dispatches MCP server requests to client handlers,
       // ]
@@ -750,6 +771,8 @@
               action: 'expand_nexus_roots_result',
               expanded: true
             }));
+          } else if (request.action === 'carto_list_jobs_result') {
+            handleCartoJobsResult(request);
           }
           
         } catch (error) {
@@ -810,6 +833,10 @@
   let uuidNavigatorOutputEl = null;
   let uuidNavigatorToggleEl = null;
   let uuidNavigatorExpanded = false;
+  // Container for async CARTO_REFRESH job summaries (F12)
+  let cartoJobsEl = null;
+  // Polling interval handle for CARTO job status
+  let cartoJobsInterval = null;
   // Tracks whether the next uuid_path_result should be rendered in FULL
   // (verbose) mode rather than compact mode.
   let uuidNavigatorFullMode = false;
@@ -1210,6 +1237,12 @@
   }
 
   // UUID Navigator widget
+  // @beacon[
+  //   id=auto-beacon@initializeUuidNavigator-i8gn,
+  //   role=initializeUuidNavigator,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function initializeUuidNavigator() {
     if (uuidNavigatorEl) return;
 
@@ -1507,9 +1540,26 @@
     output.style.MozUserSelect = 'text';
     output.style.display = 'none';
 
+    const jobsHeader = document.createElement('div');
+    jobsHeader.style.marginTop = '4px';
+    jobsHeader.style.fontSize = '10px';
+    jobsHeader.style.color = '#aaa';
+    jobsHeader.textContent = 'CARTO jobs (async F12)';
+
+    const jobsContainer = document.createElement('div');
+    jobsContainer.id = 'glimpse-carto-jobs';
+    jobsContainer.style.marginTop = '2px';
+    jobsContainer.style.fontSize = '10px';
+    jobsContainer.style.color = '#ccc';
+    jobsContainer.style.maxHeight = '80px';
+    jobsContainer.style.overflowY = 'auto';
+    jobsContainer.textContent = 'No active CARTO jobs.';
+
     container.appendChild(header);
     container.appendChild(row);
     container.appendChild(refreshBtn);
+    container.appendChild(jobsHeader);
+    container.appendChild(jobsContainer);
     container.appendChild(output);
 
     document.body.appendChild(container);
@@ -1518,8 +1568,15 @@
     uuidNavigatorInputEl = input;
     uuidNavigatorOutputEl = output;
     uuidNavigatorToggleEl = toggle;
+    cartoJobsEl = jobsContainer;
   }
 
+  // @beacon[
+  //   id=auto-beacon@requestUuidPath-vj86,
+  //   role=requestUuidPath,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function requestUuidPath(targetUuid) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       if (uuidNavigatorOutputEl) {
@@ -1660,6 +1717,12 @@
   // Store the target element for tooltip positioning when async response returns
   let lastHoverTargetEl = null;
 
+  // @beacon[
+  //   id=auto-beacon@handleUuidPathResult-96tu,
+  //   role=handleUuidPathResult,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function handleUuidPathResult(message) {
     if (isHoverRequest) {
       isHoverRequest = false;
@@ -1737,6 +1800,12 @@
     renderUuidNavigatorPath(markdown || '(No path information returned)');
   }
 
+  // @beacon[
+  //   id=auto-beacon@handleRefreshCacheResult-ppk6,
+  //   role=handleRefreshCacheResult,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function handleRefreshCacheResult(message) {
     console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] refresh_nodes_export_cache_result:`, message);
     if (!uuidNavigatorOutputEl) return;
@@ -1756,8 +1825,70 @@
     uuidNavigatorOutputEl.textContent = `Cache refreshed successfully. nodes=${count}`;
   }
 
+  // Render CARTO_REFRESH jobs into the UUID widget (best-effort)
+  function handleCartoJobsResult(message) {
+    if (!cartoJobsEl) return;
+
+    if (!message.success) {
+      cartoJobsEl.textContent = `Job listing failed: ${message.error || 'Unknown error'}`;
+      return;
+    }
+
+    const jobs = Array.isArray(message.jobs) ? message.jobs : [];
+    const active = jobs.filter((j) => {
+      if (!j || typeof j !== 'object') return false;
+      const status = String(j.status || 'unknown').toLowerCase();
+      return status !== 'completed' && status !== 'cancelled';
+    });
+
+    if (active.length === 0) {
+      cartoJobsEl.textContent = 'No active CARTO jobs.';
+      return;
+    }
+
+    cartoJobsEl.textContent = '';
+    active.forEach((job) => {
+      const mode = job.mode || 'file';
+      const rootUuid = job.root_uuid || '';
+      const progress = job.progress || {};
+      const total = progress.total_files || (mode === 'file' ? 1 : 0);
+      const completed = progress.completed_files || (mode === 'file' ? (job.status === 'completed' ? 1 : 0) : 0);
+
+      // Try to resolve root name via DOM; fall back to UUID
+      let label = rootUuid;
+      if (rootUuid) {
+        const el = document.querySelector(`div[projectid="${rootUuid}"]`);
+        if (el) {
+          const name = extractNodeName(el) || '';
+          const prefix = mode === 'folder' ? '📂' : '📄';
+          label = name ? `${prefix} ${name}` : `${prefix} ${rootUuid}`;
+        }
+      }
+
+      const line = document.createElement('div');
+      line.style.whiteSpace = 'nowrap';
+      line.style.textOverflow = 'ellipsis';
+      line.style.overflow = 'hidden';
+
+      const status = String(job.status || 'unknown');
+      let progressText = '';
+      if (mode === 'folder' && total) {
+        progressText = ` (${completed}/${total})`;
+      }
+
+      line.textContent = `[${status}] ${label}${progressText}`;
+      cartoJobsEl.appendChild(line);
+    });
+  }
+
   // Removed: timer-based scheduling (replaced with Ctrl-keyup check)
 
+  // @beacon[
+  //   id=auto-beacon@initializeUuidHoverHelper-n238,
+  //   role=initializeUuidHoverHelper,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function initializeUuidHoverHelper() {
     // Track cursor position on every mousemove
     document.addEventListener('mousemove', (event) => {
@@ -1965,15 +2096,21 @@
         const name = extractNodeName(projectEl) || '';
         const note = extractNodeNote(projectEl) || '';
         const isFolder = name.trim().startsWith('📂');
+
+        // New default: async CARTO_REFRESH job via carto_async flag.
+        // The server will launch a detached CARTO_REFRESH worker and return
+        // a small result containing job_id; detailed progress is surfaced
+        // via mcp_job_status and rendered in the widget.
         const payload = {
           action: isFolder ? 'refresh_folder_node' : 'refresh_file_node',
           node_id: uuid,
           node_name: name,
           node_note: note,
+          carto_async: true,
         };
         ws.send(JSON.stringify(payload));
 
-        // Immediate feedback while the server refreshes the node or subtree.
+        // Immediate feedback while the server schedules the async refresh.
         const tooltip = ensureUuidTooltipElement();
         const rect = projectEl.getBoundingClientRect();
         const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 20;
@@ -1981,8 +2118,8 @@
         tooltip.style.top = `${top}px`;
         tooltip.style.left = `${left}px`;
         tooltip.textContent = isFolder
-          ? 'Refreshing folder subtree in Workflowy...'
-          : 'Refreshing file node in Workflowy...';
+          ? 'Starting async CARTO_REFRESH for folder subtree...'
+          : 'Starting async CARTO_REFRESH for file node...';
         tooltip.style.display = 'block';
         clearTimeout(tooltip._hideTimer);
         tooltip._hideTimer = setTimeout(() => {
@@ -1992,6 +2129,12 @@
     });
   }
 
+  // @beacon[
+  //   id=auto-beacon@initializeMutationNotifications-twd1,
+  //   role=initializeMutationNotifications,
+  //   slice_labels=ra-websocket,
+  //   kind=ast,
+  // ]
   function initializeMutationNotifications() {
     const pending = new Set();
     let debounceTimer = null;
