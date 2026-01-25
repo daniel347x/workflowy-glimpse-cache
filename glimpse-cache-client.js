@@ -727,6 +727,13 @@
         ws.send(JSON.stringify({action: 'ping'}));
         console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sent initial ping`);
 
+        // @beacon[
+        //   id=carto-jobs@ws-open-polling,
+        //   role=Start polling for CARTO_REFRESH job status via carto_list_jobs,
+        //   slice_labels=ra-carto-jobs,
+        //   kind=span,
+        //   comment=Start polling for CARTO_REFRESH job status via carto_list_jobs,
+        // ]
         // Start polling for CARTO_REFRESH job status once per second (best-effort)
         if (!cartoJobsInterval) {
           cartoJobsInterval = setInterval(() => {
@@ -740,11 +747,14 @@
             }
           }, 1000);
         }
+        // @beacon-close[
+        //   id=carto-jobs@ws-open-polling,
+        // ]
       };
       
       // @beacon[
       //   id=ws-onmessage@glimpse-ext,
-      //   role=ws-onmessage,
+      //   role=WebSocket message handler - dispatches MCP server requests to client handlers,
       //   slice_labels=f9-f12-handlers,ra-websocket,
       //   kind=span,
       //   comment=WebSocket message handler - dispatches MCP server requests to client handlers,
@@ -752,7 +762,7 @@
       ws.onmessage = (event) => {
         try {
           const request = JSON.parse(event.data);
-          if (request.action !== 'carto_list_jobs_result') {
+          if (request.action !== 'carto_list_jobs_result' && request.action !== 'carto_cancel_job_result') {
             console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] 📩 Request from Python:`, request.action);
           }
           
@@ -774,7 +784,22 @@
               expanded: true
             }));
           } else if (request.action === 'carto_list_jobs_result') {
+            // @beacon[
+            //   id=carto-jobs@ws-carto-result-branch,
+            //   slice_labels=ra-carto-jobs,
+            //   kind=span,
+            //   role=Dispatch CARTO_REFRESH job list updates to handleCartoJobsResult,
+            //   comment=Dispatch CARTO_REFRESH job list updates to handleCartoJobsResult,
+            // ]
             handleCartoJobsResult(request);
+            // @beacon-close[
+            //   id=carto-jobs@ws-carto-result-branch,
+            // ]
+          } else if (request.action === 'carto_cancel_job_result') {
+            if (!request.success) {
+              console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] carto_cancel_job_result error:`, request.error);
+            }
+            // No further action required; the next carto_list_jobs poll will update the UI.
           }
           
         } catch (error) {
@@ -1542,6 +1567,12 @@
     output.style.MozUserSelect = 'text';
     output.style.display = 'none';
 
+    // @beacon[
+    //   id=carto-jobs@uuid-widget-ui,
+    //   slice_labels=ra-carto-jobs,
+    //   kind=span,
+    //   comment=CARTO_REFRESH job list UI (header + rows) in UUID Explorer widget,
+    // ]
     const jobsHeader = document.createElement('div');
     jobsHeader.style.marginTop = '4px';
     jobsHeader.style.fontSize = '10px';
@@ -1571,6 +1602,9 @@
     uuidNavigatorOutputEl = output;
     uuidNavigatorToggleEl = toggle;
     cartoJobsEl = jobsContainer;
+    // @beacon-close[
+    //   id=carto-jobs@uuid-widget-ui,
+    // ]
   }
 
   // @beacon[
@@ -1871,6 +1905,8 @@
       line.style.whiteSpace = 'nowrap';
       line.style.textOverflow = 'ellipsis';
       line.style.overflow = 'hidden';
+      line.style.display = 'flex';
+      line.style.alignItems = 'center';
 
       const status = String(job.status || 'unknown');
       let progressText = '';
@@ -1879,7 +1915,43 @@
         progressText = ` (${completed}/${total})`;
       }
 
-      line.textContent = `[${status}] ${label}${progressText}`;
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = `[${status}] ${label}${progressText}`;
+      labelSpan.style.flex = '1';
+      labelSpan.style.overflow = 'hidden';
+      labelSpan.style.textOverflow = 'ellipsis';
+
+      const canCancelStatus = status.toLowerCase();
+      const cancellable = canCancelStatus !== 'completed' && canCancelStatus !== 'failed' && canCancelStatus !== 'cancelled';
+
+      line.appendChild(labelSpan);
+
+      if (cancellable && window.ws && window.ws.readyState === WebSocket.OPEN) {
+        const cancelSpan = document.createElement('span');
+        cancelSpan.textContent = 'CANCEL';
+        cancelSpan.style.marginLeft = '8px';
+        cancelSpan.style.cursor = 'pointer';
+        cancelSpan.style.color = '#f88';
+        cancelSpan.style.flexShrink = '0';
+        cancelSpan.title = 'Cancel this CARTO job';
+
+        cancelSpan.addEventListener('click', (event) => {
+          event.stopPropagation();
+          try {
+            window.ws.send(
+              JSON.stringify({
+                action: 'carto_cancel_job',
+                job_id: job.job_id,
+              }),
+            );
+          } catch (err) {
+            console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] carto_cancel_job send failed:`, err);
+          }
+        });
+
+        line.appendChild(cancelSpan);
+      }
+
       cartoJobsEl.appendChild(line);
     });
   }
