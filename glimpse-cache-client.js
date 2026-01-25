@@ -752,7 +752,9 @@
       ws.onmessage = (event) => {
         try {
           const request = JSON.parse(event.data);
-          console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] 📩 Request from Python:`, request.action);
+          if (request.action !== 'carto_list_jobs_result') {
+            console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] 📩 Request from Python:`, request.action);
+          }
           
           if (request.action === 'extract_dom') {
             const result = extractDOMTree(request.node_id);
@@ -1851,8 +1853,8 @@
       const mode = job.mode || 'file';
       const rootUuid = job.root_uuid || '';
       const progress = job.progress || {};
-      const total = progress.total_files || (mode === 'file' ? 1 : 0);
-      const completed = progress.completed_files || (mode === 'file' ? (job.status === 'completed' ? 1 : 0) : 0);
+      const total = progress.total_files || 0;
+      const completed = progress.completed_files || 0;
 
       // Try to resolve root name via DOM; fall back to UUID
       let label = rootUuid;
@@ -1872,7 +1874,8 @@
 
       const status = String(job.status || 'unknown');
       let progressText = '';
-      if (mode === 'folder' && total) {
+      // Show X/Y whenever there is meaningful multi-file work; avoid noisy 1/1.
+      if (total && total > 1) {
         progressText = ` (${completed}/${total})`;
       }
 
