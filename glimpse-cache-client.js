@@ -713,6 +713,13 @@
     
     try {
       ws = new WebSocket(WS_URL);
+      // Expose WebSocket globally for UI helpers (e.g., CARTO CANCEL button).
+      try {
+        // eslint-disable-next-line no-undef
+        window.ws = ws;
+      } catch (e) {
+        // In case window is not available for some reason, ignore.
+      }
       
       ws.onopen = () => {
         console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ✅ Connected to Python MCP server`);
@@ -824,6 +831,12 @@
       ws.onclose = () => {
         console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ⚠️ Disconnected from Python MCP server`);
         ws = null;
+        try {
+          // eslint-disable-next-line no-undef
+          window.ws = null;
+        } catch (e) {
+          // Ignore if window not available.
+        }
         isConnecting = false;
         
         if (!reconnectInterval) {
