@@ -1903,6 +1903,13 @@
       const total = progress.total_files || 0;
       const completed = progress.completed_files || 0;
 
+      const phase = String(progress.current_phase || '');
+      const nodesCreated = Number(progress.nodes_created || 0);
+      const nodesUpdated = Number(progress.nodes_updated || 0);
+      const nodesMoved = Number(progress.nodes_moved || 0);
+      const nodesDeleted = Number(progress.nodes_deleted || 0);
+      const currentFileUuid = String(progress.current_file || '');
+
       // Try to resolve root name via DOM; fall back to UUID
       let label = rootUuid;
       if (rootUuid) {
@@ -1923,9 +1930,35 @@
 
       const status = String(job.status || 'unknown');
       let progressText = '';
+
       // Show X/Y whenever there is meaningful multi-file work; avoid noisy 1/1.
       if (total && total > 1) {
         progressText = ` (${completed}/${total})`;
+      }
+
+      // Extra progress info (phase + node counters) when available.
+      const extraBits = [];
+      if (phase && phase !== 'refresh') {
+        extraBits.push(`phase=${phase}`);
+      }
+
+      if (nodesCreated || nodesUpdated || nodesMoved || nodesDeleted) {
+        extraBits.push(`nodes:+${nodesCreated} ~${nodesUpdated} ↻${nodesMoved} -${nodesDeleted}`);
+      }
+
+      // When server reports which file is being processed, show it (best-effort).
+      if (currentFileUuid) {
+        let fileLabel = currentFileUuid;
+        const el = document.querySelector(`div[projectid="${currentFileUuid}"]`);
+        if (el) {
+          const name = extractNodeName(el) || '';
+          fileLabel = name ? name : currentFileUuid;
+        }
+        extraBits.push(`file=${fileLabel}`);
+      }
+
+      if (extraBits.length > 0) {
+        progressText += ` | ${extraBits.join(' | ')}`;
       }
 
       const labelSpan = document.createElement('span');
