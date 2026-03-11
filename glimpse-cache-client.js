@@ -1158,12 +1158,31 @@
       });
   }
 
-  function classifyF12Target(nameText, noteText) {
-    const name = String(nameText || '').trim();
-    const note = String(noteText || '');
+  function getCartographerHeaderInfo(noteText) {
+    const lines = String(noteText || '').split('\n');
+    let firstHeader = '';
+    let hasLineCount = false;
 
-    if (name.startsWith('📂')) return 'folder';
-    if (noteHasPathOrRootHeader(note)) return 'file';
+    lines.forEach((line) => {
+      const stripped = line.trim();
+      if (!stripped) return;
+      if (!firstHeader && (stripped.startsWith('Path:') || stripped.startsWith('Root:'))) {
+        firstHeader = stripped;
+      }
+      if (stripped.startsWith('LINE COUNT:')) {
+        hasLineCount = true;
+      }
+    });
+
+    return { firstHeader, hasLineCount };
+  }
+
+  function classifyF12Target(nameText, noteText) {
+    const note = String(noteText || '');
+    const { firstHeader, hasLineCount } = getCartographerHeaderInfo(note);
+
+    if (firstHeader.startsWith('Root:')) return 'folder';
+    if (firstHeader.startsWith('Path:')) return hasLineCount ? 'file' : 'folder';
     if (note.includes('AST_QUALNAME:') || note.includes('BEACON (') || note.includes('MD_PATH:')) {
       return 'node';
     }
