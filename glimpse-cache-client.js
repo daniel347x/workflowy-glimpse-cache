@@ -8,7 +8,7 @@
 (function() {
   'use strict';
   
-  const GLIMPSE_VERSION = '3.12.0';
+  const GLIMPSE_VERSION = '3.12.1';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
@@ -2352,6 +2352,35 @@
       lastMousePos = {x: event.clientX, y: event.clientY};
       hideUuidTooltip(); // Hide tooltip when cursor moves
     });
+
+    // When the F12 popup is open, intercept action keys on keydown so
+    // Workflowy's contenteditable does not also type the digit into the node.
+    document.addEventListener('keydown', (event) => {
+      if (!f12PopupState) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+        hideF12ActionPopup();
+        return;
+      }
+
+      if (/^[1-9]$/.test(event.key)) {
+        const handled = executeF12PopupAction(event.key);
+        if (handled) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof event.stopImmediatePropagation === 'function') {
+            event.stopImmediatePropagation();
+          }
+        }
+      }
+    }, true);
 
     // F2, F3, F4, F8, F9, F10, and F12 keyup handlers
     document.addEventListener('keyup', (event) => {
