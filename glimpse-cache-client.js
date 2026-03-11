@@ -779,6 +779,8 @@
             console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ✅ Sent response:`, result.node_count || 0, 'nodes');
           } else if (request.action === 'uuid_path_result') {
             handleUuidPathResult(request);
+          } else if (request.action === 'refresh_nodes_export_cache_status') {
+            handleRefreshCacheStatus(request);
           } else if (request.action === 'refresh_nodes_export_cache_result') {
             handleRefreshCacheResult(request);
           } else if (request.action === 'expand_nexus_roots') {
@@ -1855,6 +1857,29 @@
   //   slice_labels=ra-websocket,
   //   kind=ast,
   // ]
+  function handleRefreshCacheStatus(message) {
+    console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] refresh_nodes_export_cache_status:`, message);
+    if (!uuidNavigatorOutputEl) return;
+
+    uuidNavigatorOutputEl.style.display = 'block';
+    uuidNavigatorExpanded = true;
+    if (uuidNavigatorToggleEl) {
+      uuidNavigatorToggleEl.textContent = '▾';
+    }
+
+    const status = String(message.status || '').toLowerCase();
+    if (status === 'queued') {
+      uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache (queued)...';
+      return;
+    }
+    if (status === 'running') {
+      uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache...';
+      return;
+    }
+
+    uuidNavigatorOutputEl.textContent = `Cache refresh status: ${message.status || 'unknown'}`;
+  }
+
   function handleRefreshCacheResult(message) {
     console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] refresh_nodes_export_cache_result:`, message);
     if (!uuidNavigatorOutputEl) return;
