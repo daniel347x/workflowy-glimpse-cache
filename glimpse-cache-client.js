@@ -8,7 +8,7 @@
 (function() {
   'use strict';
   
-  const GLIMPSE_VERSION = '3.11.0';
+  const GLIMPSE_VERSION = '3.12.0';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
@@ -17,6 +17,8 @@
   
   const WS_URL = 'ws://localhost:8765';
   const RECONNECT_DELAY = 3000; // 3 seconds
+  const F12_POPUP_ENABLED = true;
+  const F12_BULK_VISIBLE_APPLY_ENABLED = false;
 
   // ------------------------------------------------------------
   // 🔎 NEXUS-ROOT EXPANSION HELPERS (#nexus-- tags)
@@ -882,6 +884,9 @@
   // Tracks whether the next uuid_path_result should be rendered in FULL
   // (verbose) mode rather than compact mode.
   let uuidNavigatorFullMode = false;
+  // F12 action popup state
+  let f12PopupEl = null;
+  let f12PopupState = null;
 
   // @beacon[
   //   id=auto-beacon@ensureUuidTooltipElement-pm6x,
@@ -1063,6 +1068,312 @@
     el._hideTimer = setTimeout(() => {
       hideUuidTooltip();
     }, 10000);
+  }
+
+  function ensureF12ActionPopup() {
+    if (f12PopupEl) return f12PopupEl;
+    const el = document.createElement('div');
+    el.id = 'glimpse-f12-popup';
+    el.style.position = 'absolute';
+    el.style.zIndex = '10000';
+    el.style.minWidth = '280px';
+    el.style.maxWidth = '420px';
+    el.style.padding = '8px 10px';
+    el.style.background = 'rgba(17, 17, 17, 0.96)';
+    el.style.color = '#fff';
+    el.style.fontSize = '12px';
+    el.style.lineHeight = '1.4';
+    el.style.border = '1px solid rgba(102, 179, 255, 0.35)';
+    el.style.borderRadius = '8px';
+    el.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.45)';
+    el.style.pointerEvents = 'auto';
+    el.style.display = 'none';
+    el.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    document.body.appendChild(el);
+    f12PopupEl = el;
+    return el;
+  }
+
+  function hideF12ActionPopup() {
+    if (f12PopupEl) {
+      f12PopupEl.style.display = 'none';
+    }
+    f12PopupState = null;
+  }
+
+  function noteHasPathOrRootHeader(noteText) {
+    return String(noteText || '')
+      .split('\n')
+      .some((line) => {
+        const stripped = line.trim();
+        return stripped.startsWith('Path:') || stripped.startsWith('Root:');
+      });
+  }
+
+  function classifyF12Target(nameText, noteText) {
+    const name = String(nameText || '').trim();
+    const note = String(noteText || '');
+
+    if (name.startsWith('📂')) return 'folder';
+    if (noteHasPathOrRootHeader(note)) return 'file';
+    if (note.includes('AST_QUALNAME:') || note.includes('BEACON (') || note.includes('MD_PATH:')) {
+      return 'node';
+    }
+    return 'unsupported';
+  }
+
+  function showTransientHoverText(targetEl, text, timeoutMs = 6000) {
+    if (!targetEl) return;
+    const tooltip = ensureUuidTooltipElement();
+    const rect = targetEl.getBoundingClientRect();
+    const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 20;
+    const left = window.scrollX + (lastMousePos ? lastMousePos.x : rect.left) + 16;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.textContent = text;
+    tooltip.style.display = 'block';
+    clearTimeout(tooltip._hideTimer);
+    tooltip._hideTimer = setTimeout(() => {
+      hideUuidTooltip();
+    }, timeoutMs);
+  }
+
+  function dispatchF12RefreshAction(state, cartoAsync) {
+    if (!state || !state.uuid || !ws || ws.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const payload = {
+      action: state.targetType === 'folder' ? 'refresh_folder_node' : 'refresh_file_node',
+      node_id: state.uuid,
+      node_name: state.name,
+      node_note: state.note,
+      carto_async: !!cartoAsync,
+    };
+    ws.send(JSON.stringify(payload));
+
+    let message = 'Starting refresh...';
+    if (state.targetType === 'folder') {
+      message = 'Starting async CARTO_REFRESH for folder subtree...';
+    } else if (state.targetType === 'file') {
+      message = 'Starting async CARTO_REFRESH for file node...';
+    } else if (cartoAsync) {
+      message = 'Starting async CARTO_REFRESH for containing file...';
+    } else {
+      message = 'Running fast node beacon update + visual file refresh...';
+    }
+    showTransientHoverText(state.projectEl, message, cartoAsync ? 10000 : 6000);
+    return true;
+  }
+
+  function getF12ActionOptions(state) {
+    if (!state) return [];
+
+    if (state.targetType === 'folder') {
+      return [
+        {
+          key: '1',
+          label: 'Async folder refresh',
+          detail: 'Detached CARTO_REFRESH over this subtree',
+          disabled: false,
+          onSelect: () => dispatchF12RefreshAction(state, true),
+        },
+        {
+          key: '2',
+          label: 'Bulk visible beacon/tag apply',
+          detail: 'Coming soon',
+          disabled: !F12_BULK_VISIBLE_APPLY_ENABLED,
+          onSelect: () => false,
+        },
+      ];
+    }
+
+    if (state.targetType === 'file') {
+      return [
+        {
+          key: '1',
+          label: 'Async file refresh',
+          detail: 'Detached CARTO_REFRESH for this file',
+          disabled: false,
+          onSelect: () => dispatchF12RefreshAction(state, true),
+        },
+        {
+          key: '2',
+          label: 'Bulk visible beacon/tag apply',
+          detail: 'Coming soon',
+          disabled: !F12_BULK_VISIBLE_APPLY_ENABLED,
+          onSelect: () => false,
+        },
+      ];
+    }
+
+    if (state.targetType === 'node') {
+      return [
+        {
+          key: '1',
+          label: 'Fast node beacon update',
+          detail: 'Sync per-node update + visual file refresh',
+          disabled: false,
+          onSelect: () => dispatchF12RefreshAction(state, false),
+        },
+        {
+          key: '2',
+          label: 'Async containing-file refresh',
+          detail: 'Detached CARTO_REFRESH after node update',
+          disabled: false,
+          onSelect: () => dispatchF12RefreshAction(state, true),
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  function executeF12PopupAction(selectionKey) {
+    if (!f12PopupState || !Array.isArray(f12PopupState.actions)) {
+      return false;
+    }
+
+    const action = f12PopupState.actions.find((opt) => opt.key === selectionKey);
+    if (!action) {
+      return false;
+    }
+
+    const state = f12PopupState;
+    hideF12ActionPopup();
+
+    if (action.disabled) {
+      showTransientHoverText(state.projectEl, `${action.label} — coming soon.`, 4000);
+      return true;
+    }
+
+    try {
+      action.onSelect();
+    } catch (err) {
+      console.error(`[GLIMPSE Cache v${GLIMPSE_VERSION}] F12 popup action failed:`, err);
+      const msg = err && err.message ? err.message : String(err);
+      showTransientHoverText(state.projectEl, `F12 action failed: ${msg}`, 6000);
+    }
+    return true;
+  }
+
+  function showF12ActionPopup(projectEl) {
+    const uuid = projectEl && projectEl.getAttribute('projectid');
+    if (!projectEl || !uuid) return false;
+
+    const name = extractNodeName(projectEl) || '';
+    const note = extractNodeNote(projectEl) || '';
+    const targetType = classifyF12Target(name, note);
+
+    if (targetType === 'unsupported') {
+      showTransientHoverText(projectEl, 'No F12 actions available for this node.', 5000);
+      return false;
+    }
+
+    hideUuidTooltip();
+
+    const popup = ensureF12ActionPopup();
+    popup.innerHTML = '';
+
+    const state = {
+      projectEl,
+      uuid,
+      name,
+      note,
+      targetType,
+      actions: [],
+    };
+    state.actions = getF12ActionOptions(state);
+    f12PopupState = state;
+
+    const title = document.createElement('div');
+    title.textContent =
+      targetType === 'folder'
+        ? 'F12 · Folder actions'
+        : targetType === 'file'
+          ? 'F12 · File actions'
+          : 'F12 · Node actions';
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '4px';
+
+    const subtitle = document.createElement('div');
+    subtitle.textContent = name || 'Untitled';
+    subtitle.style.fontSize = '11px';
+    subtitle.style.color = '#9ecbff';
+    subtitle.style.marginBottom = '8px';
+    subtitle.style.whiteSpace = 'nowrap';
+    subtitle.style.overflow = 'hidden';
+    subtitle.style.textOverflow = 'ellipsis';
+
+    popup.appendChild(title);
+    popup.appendChild(subtitle);
+
+    state.actions.forEach((action) => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'flex-start';
+      row.style.gap = '8px';
+      row.style.padding = '6px 4px';
+      row.style.borderRadius = '6px';
+      row.style.marginBottom = '4px';
+      row.style.cursor = action.disabled ? 'default' : 'pointer';
+      row.style.opacity = action.disabled ? '0.55' : '1';
+      row.style.background = action.disabled ? 'transparent' : 'rgba(255, 255, 255, 0.03)';
+
+      if (!action.disabled) {
+        row.addEventListener('mouseenter', () => {
+          row.style.background = 'rgba(102, 179, 255, 0.12)';
+        });
+        row.addEventListener('mouseleave', () => {
+          row.style.background = 'rgba(255, 255, 255, 0.03)';
+        });
+      }
+
+      row.addEventListener('click', (evt) => {
+        evt.stopPropagation();
+        executeF12PopupAction(action.key);
+      });
+
+      const key = document.createElement('div');
+      key.textContent = action.key;
+      key.style.minWidth = '16px';
+      key.style.fontWeight = '700';
+      key.style.color = action.disabled ? '#888' : '#66b3ff';
+
+      const body = document.createElement('div');
+      body.style.display = 'flex';
+      body.style.flexDirection = 'column';
+
+      const label = document.createElement('div');
+      label.textContent = action.label;
+      label.style.fontSize = '12px';
+
+      const detail = document.createElement('div');
+      detail.textContent = action.detail;
+      detail.style.fontSize = '10px';
+      detail.style.color = '#aaa';
+
+      body.appendChild(label);
+      body.appendChild(detail);
+      row.appendChild(key);
+      row.appendChild(body);
+      popup.appendChild(row);
+    });
+
+    const footer = document.createElement('div');
+    footer.textContent = 'Press 1 / 2 or click · ESC cancels';
+    footer.style.marginTop = '6px';
+    footer.style.fontSize = '10px';
+    footer.style.color = '#999';
+    popup.appendChild(footer);
+
+    const rect = projectEl.getBoundingClientRect();
+    const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 18;
+    const left = window.scrollX + (lastMousePos ? lastMousePos.x : rect.left) + 12;
+    popup.style.top = `${top}px`;
+    popup.style.left = `${left}px`;
+    popup.style.display = 'block';
+    return true;
   }
 
   function copyUuidForElement(el, includeAllUuids) {
@@ -2044,6 +2355,21 @@
 
     // F2, F3, F4, F8, F9, F10, and F12 keyup handlers
     document.addEventListener('keyup', (event) => {
+      if (f12PopupState) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          hideF12ActionPopup();
+          return;
+        }
+        if (/^[1-9]$/.test(event.key)) {
+          const handled = executeF12PopupAction(event.key);
+          if (handled) {
+            event.preventDefault();
+            return;
+          }
+        }
+      }
+
       // F2 keyup: all UUIDs in path (instant)
       if (event.key === 'F2') {
         event.preventDefault();
@@ -2202,7 +2528,7 @@
       //   id=f9-handler@glimpse-ext,
       // ]
 
-      // F12 keyup: refresh Cartographer FILE node or FOLDER subtree in Workflowy from source
+      // F12 keyup: open action popup for Cartographer refresh/update operations
       if (event.key === 'F12') {
         event.preventDefault();
 
@@ -2234,6 +2560,11 @@
           return;
         }
 
+        if (F12_POPUP_ENABLED) {
+          showF12ActionPopup(projectEl);
+          return;
+        }
+
         const uuid = projectEl.getAttribute('projectid');
         if (!uuid) {
           return;
@@ -2241,38 +2572,25 @@
 
         const name = extractNodeName(projectEl) || '';
         const note = extractNodeNote(projectEl) || '';
-        const isFolder = name.trim().startsWith('📂');
-
-        // New default: async CARTO_REFRESH job via carto_async flag.
-        // The server will launch a detached CARTO_REFRESH worker and return
-        // a small result containing job_id; detailed progress is surfaced
-        // via mcp_job_status and rendered in the widget.
-        const payload = {
-          action: isFolder ? 'refresh_folder_node' : 'refresh_file_node',
-          node_id: uuid,
-          node_name: name,
-          node_note: note,
-          carto_async: true,
-        };
-        ws.send(JSON.stringify(payload));
-
-        // Immediate feedback while the server schedules the async refresh.
-        const tooltip = ensureUuidTooltipElement();
-        const rect = projectEl.getBoundingClientRect();
-        const top = window.scrollY + (lastMousePos ? lastMousePos.y : rect.bottom) + 20;
-        const left = window.scrollX + (lastMousePos ? lastMousePos.x : rect.left) + 16;
-        tooltip.style.top = `${top}px`;
-        tooltip.style.left = `${left}px`;
-        tooltip.textContent = isFolder
-          ? 'Starting async CARTO_REFRESH for folder subtree...'
-          : 'Starting async CARTO_REFRESH for file node...';
-        tooltip.style.display = 'block';
-        clearTimeout(tooltip._hideTimer);
-        tooltip._hideTimer = setTimeout(() => {
-          hideUuidTooltip();
-        }, 10000);
+        dispatchF12RefreshAction({
+          projectEl,
+          uuid,
+          name,
+          note,
+          targetType: classifyF12Target(name, note),
+        }, true);
       }
     });
+
+    document.addEventListener('mousedown', (event) => {
+      if (!f12PopupEl || f12PopupEl.style.display !== 'block') {
+        return;
+      }
+      if (event.target instanceof Node && f12PopupEl.contains(event.target)) {
+        return;
+      }
+      hideF12ActionPopup();
+    }, true);
   }
 
   // @beacon[
