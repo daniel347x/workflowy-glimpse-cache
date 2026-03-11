@@ -8,7 +8,7 @@
 (function() {
   'use strict';
   
-  const GLIMPSE_VERSION = '3.12.1';
+  const GLIMPSE_VERSION = '3.13.0';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
@@ -18,7 +18,7 @@
   const WS_URL = 'ws://localhost:8765';
   const RECONNECT_DELAY = 3000; // 3 seconds
   const F12_POPUP_ENABLED = true;
-  const F12_BULK_VISIBLE_APPLY_ENABLED = false;
+  const F12_BULK_VISIBLE_APPLY_ENABLED = true;
 
   // ------------------------------------------------------------
   // 🔎 NEXUS-ROOT EXPANSION HELPERS (#nexus-- tags)
@@ -420,6 +420,52 @@
       };
     }
   }
+
+  function extractVisibleActionTree(nodeId) {
+    console.log('[GLIMPSE Cache] 🏷️ Extracting visible action tree for node:', nodeId);
+
+    try {
+      const rootElement = document.querySelector(`div[projectid="${nodeId}"]`);
+
+      if (!rootElement) {
+        console.warn('[GLIMPSE Cache] ❌ Action root not found in DOM:', nodeId);
+        return {
+          success: false,
+          error: `Node ${nodeId} not found in DOM (may be collapsed or not loaded)`
+        };
+      }
+
+      const rootName = extractNodeName(rootElement);
+      const rootNote = extractNodeNote(rootElement);
+      const searchActive = isSearchActive();
+      const children = searchActive ?
+        extractSearchResults(rootElement, false) :
+        extractChildren(rootElement, false);
+
+      const nodeCount = 1 + countNodesRecursive(children);
+      const depth = calculateDepth(children);
+
+      return {
+        success: true,
+        root: {
+          id: nodeId,
+          name: rootName,
+          note: rootNote,
+          parent_id: rootElement.parentElement?.closest('div[projectid]')?.getAttribute('projectid') || null
+        },
+        children: children,
+        node_count: nodeCount,
+        depth: depth,
+        _source: searchActive ? 'search_results' : 'expansion'
+      };
+    } catch (error) {
+      console.error('[GLIMPSE Cache] Error during visible action tree extraction:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
   
   function extractNodeName(element) {
     // @beacon[
@@ -785,6 +831,8 @@
             handleRefreshCacheStatus(request);
           } else if (request.action === 'refresh_nodes_export_cache_result') {
             handleRefreshCacheResult(request);
+          } else if (request.action === 'bulk_apply_visible_nodes_result') {
+            handleBulkApplyVisibleResult(request);
           } else if (request.action === 'expand_nexus_roots') {
             // Agent-triggered: expand all visible #nexus-- roots
             const opts = request.options || {};
@@ -1166,6 +1214,37 @@
     return true;
   }
 
+  function dispatchF12BulkApplyAction(state) {
+    if (!state || !state.uuid || !ws || ws.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const visibleTree = extractVisibleActionTree(state.uuid);
+    if (!visibleTree || !visibleTree.success) {
+      const errorText = visibleTree && visibleTree.error
+        ? visibleTree.error
+        : 'Failed to extract visible subtree for batch apply.';
+      showTransientHoverText(state.projectEl, errorText, 6000);
+      return false;
+    }
+
+    const payload = {
+      action: 'bulk_apply_visible_nodes',
+      root_uuid: state.uuid,
+      root_name: state.name,
+      root_note: state.note,
+      root_mode: state.targetType,
+      visible_tree: visibleTree,
+    };
+    ws.send(JSON.stringify(payload));
+
+    const message = state.targetType === 'folder'
+      ? 'Starting bulk visible beacon/tag apply for folder subtree...'
+      : 'Starting bulk visible beacon/tag apply for file...';
+    showTransientHoverText(state.projectEl, message, 10000);
+    return true;
+  }
+
   function getF12ActionOptions(state) {
     if (!state) return [];
 
@@ -1181,9 +1260,9 @@
         {
           key: '2',
           label: 'Bulk visible beacon/tag apply',
-          detail: 'Coming soon',
+          detail: 'Apply current visible Workflowy metadata in one batch',
           disabled: !F12_BULK_VISIBLE_APPLY_ENABLED,
-          onSelect: () => false,
+          onSelect: () => dispatchF12BulkApplyAction(state),
         },
       ];
     }
@@ -1200,9 +1279,9 @@
         {
           key: '2',
           label: 'Bulk visible beacon/tag apply',
-          detail: 'Coming soon',
+          detail: 'Apply current visible Workflowy metadata in one batch',
           disabled: !F12_BULK_VISIBLE_APPLY_ENABLED,
-          onSelect: () => false,
+          onSelect: () => dispatchF12BulkApplyAction(state),
         },
       ];
     }
@@ -1903,7 +1982,7 @@
     jobsHeader.style.marginTop = '4px';
     jobsHeader.style.fontSize = '10px';
     jobsHeader.style.color = '#aaa';
-    jobsHeader.textContent = 'CARTO jobs (async F12)';
+    jobsHeader.textContent = 'CARTO jobs (async F12 / batch)';
 
     const jobsContainer = document.createElement('div');
     jobsContainer.id = 'glimpse-carto-jobs';
@@ -2210,6 +2289,29 @@
     uuidNavigatorOutputEl.textContent = `Cache refreshed successfully. nodes=${count}`;
   }
 
+  function handleBulkApplyVisibleResult(message) {
+    console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] bulk_apply_visible_nodes_result:`, message);
+    if (!uuidNavigatorOutputEl) return;
+
+    uuidNavigatorOutputEl.style.display = 'block';
+    uuidNavigatorExpanded = true;
+    if (uuidNavigatorToggleEl) {
+      uuidNavigatorToggleEl.textContent = '▾';
+    }
+
+    if (!message.success) {
+      uuidNavigatorOutputEl.textContent = `Bulk apply failed: ${message.error || 'Unknown error'}`;
+      return;
+    }
+
+    if (message.job_id) {
+      uuidNavigatorOutputEl.textContent = `Bulk apply queued: ${message.job_id}`;
+      return;
+    }
+
+    uuidNavigatorOutputEl.textContent = message.message || 'Bulk apply request accepted.';
+  }
+
   // Render CARTO_REFRESH jobs into the UUID widget (best-effort)
   function handleCartoJobsResult(message) {
     if (!cartoJobsEl) return;
@@ -2234,6 +2336,7 @@
     cartoJobsEl.textContent = '';
     active.forEach((job) => {
       const mode = job.mode || 'file';
+      const kind = String(job.kind || '');
       const rootUuid = job.root_uuid || '';
       const progress = job.progress || {};
       const total = progress.total_files || 0;
@@ -2252,7 +2355,9 @@
         const el = document.querySelector(`div[projectid="${rootUuid}"]`);
         if (el) {
           const name = extractNodeName(el) || '';
-          const prefix = mode === 'folder' ? '📂' : '📄';
+          const prefix = kind === 'CARTO_BULK_APPLY'
+            ? '🏷️'
+            : mode === 'folder' ? '📂' : '📄';
           label = name ? `${prefix} ${name}` : `${prefix} ${rootUuid}`;
         }
       }
