@@ -1176,12 +1176,36 @@
     return { firstHeader, hasLineCount };
   }
 
+  function pathHeaderLooksLikeFile(firstHeader, nameText) {
+    const header = String(firstHeader || '').trim();
+    if (!header.startsWith('Path:')) return false;
+
+    const pathValue = header.slice('Path:'.length).trim().replace(/^['"]|['"]$/g, '');
+    if (!pathValue || pathValue === '.' || pathValue.endsWith('/') || pathValue.endsWith('\\')) {
+      return false;
+    }
+
+    const lowerPath = pathValue.toLowerCase();
+    const lowerName = String(nameText || '').trim().toLowerCase();
+
+    // Manual file nodes may not yet have a LINE COUNT header because they were
+    // created directly in Workflowy before any Cartographer refresh. If the
+    // Path: value (or the visible node name) clearly ends with a filename
+    // extension, treat the target as a FILE node so F12 can offer file actions
+    // such as Markdown roundtrip generation.
+    if (/(^|[\\/])[^\\/]+\.[^\\/.\s]+$/.test(lowerPath)) return true;
+    if (/\.[a-z0-9_-]+$/.test(lowerName)) return true;
+    return false;
+  }
+
   function classifyF12Target(nameText, noteText) {
     const note = String(noteText || '');
     const { firstHeader, hasLineCount } = getCartographerHeaderInfo(note);
 
     if (firstHeader.startsWith('Root:')) return 'folder';
-    if (firstHeader.startsWith('Path:')) return hasLineCount ? 'file' : 'folder';
+    if (firstHeader.startsWith('Path:')) {
+      return (hasLineCount || pathHeaderLooksLikeFile(firstHeader, nameText)) ? 'file' : 'folder';
+    }
     if (note.includes('AST_QUALNAME:') || note.includes('BEACON (') || note.includes('MD_PATH:')) {
       return 'node';
     }
