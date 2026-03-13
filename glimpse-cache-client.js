@@ -57,7 +57,7 @@
 // @beacon[
 //   id=extract-node-name@23224,
 //   role=extract-node-name,
-//   slice_labels=glimpse-core,nexus-test,nexus-best,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 // ]
   function nameHasNexusCollapseTag(nameText) {
@@ -120,7 +120,7 @@
   // @beacon[
   //   id=auto-beacon@findVisibleNexusExpandNodes-rlf8,
   //   role=findVisibleNexusExpandNodes,
-  //   slice_labels=nexus-test,
+  //   slice_labels=glimpse-core,
   //   kind=ast,
   // ]
   function findVisibleNexusExpandNodes() {
@@ -163,7 +163,7 @@
 // @beacon[
 //   id=auto-beacon@pruneNestedNexusRoots,
 //   role=pruneNestedNexusRoots,
-//   slice_labels=pruneNestedNexusRoots,nexus-test--foo,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 // ]
   function pruneNestedNexusRoots(nodes) {
@@ -210,7 +210,7 @@
 // @beacon[
 //   id=auto-beacon@expandAllVisibleNexusRoots,
 //   role=expandAllVisibleNexusRoots,
-//   slice_labels=expandAllVisibleNexusRoots,nexus-test,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 // ]
   function expandAllVisibleNexusRoots(options) {
@@ -362,9 +362,9 @@
 // @beacon[
 //   id=extract-dom-tree@glimpse-ext,
 //   role=extract-dom-tree,
-//   slice_labels=f9-f12-handlers,glimpse-core,nexus-foo-foo-foo,#nexus-test,
+//   slice_labels=f9-f12-handlers,glimpse-core,
 //   kind=ast,
-//   comment=Main DOM extraction - converts visible Workflowy tree to JSON for MCP server - are commas allowed?, let me TEST that,
+//   comment=Main DOM extraction - converts visible Workflowy tree to JSON for MCP server,
 // ]
   function extractDOMTree(nodeId) {
     console.log('[GLIMPSE Cache] 🔍 Extracting DOM tree for node:', nodeId);
@@ -514,7 +514,7 @@
 // @beacon[
 //   id=extract-node-note@glimpse-ext,
 //   role=extract-node-note,
-//   slice_labels=glimpse-core,nexus-test-again,nexus-bad,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 //   comment=Extract node note text from Workflowy DOM element,
 // ]
@@ -530,7 +530,7 @@
   // @beacon[
   //   id=auto-beacon@dewhitenText-ol8k,
   //   role=dewhitenText,
-  //   slice_labels=dewhitenText,nexus-test,
+  //   slice_labels=glimpse-core,
   //   kind=ast,
   // ]
   function dewhitenText(text) {
@@ -542,7 +542,7 @@
 // @beacon[
 //   id=auto-beacon@extractNodeNameHtml,
 //   role=extractNodeNameHtml,
-//   slice_labels=extractNodeNameHtml,nexus-test-again,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 // ]
   function extractNodeNameHtml(element) {
@@ -561,7 +561,7 @@
   // @beacon[
   //   id=auto-beacon@extractNodeNoteHtml,
   //   role=extractNodeNoteHtml,
-  //   slice_labels=extractNodeNoteHtml,nexus-test,
+  //   slice_labels=glimpse-core,
   //   kind=ast,
   // ]
   function extractNodeNoteHtml(element) {
@@ -585,7 +585,7 @@
   // @beacon[
   //   id=auto-beacon@extractSearchResults-v534,
   //   role=extractSearchResults,
-  //   slice_labels=extractSearchResults,nexus-foo,
+  //   slice_labels=glimpse-core,
   //   kind=ast,
   // ]
   function extractSearchResults(rootElement, useHtml = false) {
@@ -656,7 +656,7 @@
 // @beacon[
 //   id=auto-beacon@extractChildren,
 //   role=extractChildren,
-//   slice_labels=extractChildren,nexus-test-3,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 // ]
   function extractChildren(parentElement, useHtml = false) {
@@ -701,7 +701,7 @@
 // @beacon[
 //   id=auto-beacon@countNodesRecursive,
 //   role=countNodesRecursive,
-//   slice_labels=countNodesRecursive,nexus-test-2,
+//   slice_labels=glimpse-core,
 //   kind=ast,
 // ]
   function countNodesRecursive(nodes) {
@@ -939,9 +939,8 @@
   // @beacon[
   //   id=auto-beacon@ensureUuidTooltipElement-pm6x,
   //   role=ensureUuidTooltipElement,
-  //   slice_labels=ensureUuidTooltipElement,nexus-foo,nexus--too,
+  //   slice_labels=nexus--glimpse-extension,
   //   kind=ast,
-  //   comment=A [set of tags] here,
   // ]
   function ensureUuidTooltipElement() {
     if (uuidTooltipEl) return uuidTooltipEl;
@@ -2760,7 +2759,7 @@
     // @beacon[
     //   id=auto-beacon@initializeMutationNotifications.scheduleNotify-tmwo,
     //   role=initializeMutationNotifications.scheduleNotify,
-    //   slice_labels=initializeMutationNotifications-scheduleNotify,nexus-test,
+    //   slice_labels=ra-websocket,
     //   kind=ast,
     // ]
     function scheduleNotify(uuid) {
