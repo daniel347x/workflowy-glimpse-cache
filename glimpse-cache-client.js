@@ -1301,6 +1301,16 @@
           disabled: !F12_BULK_VISIBLE_APPLY_ENABLED,
           onSelect: () => dispatchF12BulkApplyAction(state),
         },
+        {
+          key: '3',
+          label: 'Generate Markdown roundtrip file',
+          detail: 'Overwrites local file with Markdown roundtrip of this subtree',
+          disabled: false,
+          onSelect: () => {
+            ws.send(JSON.stringify({ action: 'generate_markdown_file', node_id: state.uuid }));
+            showTransientHoverText(state.projectEl, 'Generating Markdown roundtrip...', 4000);
+          },
+        },
       ];
     }
 
@@ -1458,7 +1468,7 @@
     });
 
     const footer = document.createElement('div');
-    footer.textContent = 'Press 1 / 2 or click · ESC cancels';
+    footer.textContent = 'Press 1 / 2 / 3 or click · ESC cancels';
     footer.style.marginTop = '6px';
     footer.style.fontSize = '10px';
     footer.style.color = '#999';
