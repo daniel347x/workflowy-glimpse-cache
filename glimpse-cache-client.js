@@ -1286,6 +1286,15 @@
     }
 
     if (state.targetType === 'file') {
+      const { firstHeader } = getCartographerHeaderInfo(state.note);
+      const loweredHeader = String(firstHeader || '').toLowerCase();
+      const loweredName = String(state.name || '').toLowerCase();
+      const isMarkdownFile =
+        loweredHeader.endsWith('.md') ||
+        loweredHeader.endsWith('.markdown') ||
+        loweredName.includes('.md') ||
+        loweredName.includes('.markdown');
+
       return [
         {
           key: '1',
@@ -1304,8 +1313,10 @@
         {
           key: '3',
           label: 'Generate Markdown roundtrip file',
-          detail: 'Overwrites local file with Markdown roundtrip of this subtree',
-          disabled: false,
+          detail: isMarkdownFile
+            ? 'Overwrites local file with Markdown roundtrip of this subtree'
+            : 'Markdown file nodes only',
+          disabled: !isMarkdownFile,
           onSelect: () => {
             ws.send(JSON.stringify({ action: 'generate_markdown_file', node_id: state.uuid }));
             showTransientHoverText(state.projectEl, 'Generating Markdown roundtrip...', 4000);
