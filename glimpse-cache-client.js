@@ -8,6 +8,14 @@
 (function() {
   'use strict';
   
+  // @beacon[
+  //   id=glimpse-loading@standalone-client-config,
+  //   role=standalone client websocket/config defaults,
+  //   slice_labels=nexus--glimpse-extension,nexus--config,nexus-loading-flow,
+  //   kind=span,
+  //   show_span=true,
+  //   comment=Standalone Electron client bootstrap constants: version log, websocket endpoint, reconnect timing, and feature flags,
+  // ]
   const GLIMPSE_VERSION = '3.13.0';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
@@ -19,6 +27,9 @@
   const RECONNECT_DELAY = 3000; // 3 seconds
   const F12_POPUP_ENABLED = true;
   const F12_BULK_VISIBLE_APPLY_ENABLED = true;
+  // @beacon-close[
+  //   id=glimpse-loading@standalone-client-config,
+  // ]
 
   // ------------------------------------------------------------
   // 🔎 NEXUS-ROOT EXPANSION HELPERS (#nexus-- tags)
@@ -748,7 +759,7 @@
   // @beacon[
   //   id=auto-beacon@connectWebSocket-fh7i,
    //   role=connectWebSocket,
-  //   slice_labels=ra-websocket,
+  //   slice_labels=ra-websocket,nexus--config,nexus-loading-flow,
   //   kind=ast,
   // ]
   function connectWebSocket() {
@@ -785,7 +796,7 @@
         // @beacon[
         //   id=carto-jobs@ws-open-polling,
         //   role=Start polling for CARTO_REFRESH job status via carto_list_jobs,
-        //   slice_labels=ra-carto-jobs,
+        //   slice_labels=ra-carto-jobs,nexus--config,
         //   kind=span,
         //   comment=Start polling for CARTO_REFRESH job status via carto_list_jobs,
         // ]
@@ -1148,6 +1159,13 @@
     f12PopupState = null;
   }
 
+  // @beacon[
+  //   id=glimpse-path@noteHasPathOrRootHeader,
+  //   role=noteHasPathOrRootHeader,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Detect whether a Workflowy note carries Path:/Root: Cartographer headers,
+  // ]
   function noteHasPathOrRootHeader(noteText) {
     return String(noteText || '')
       .split('\n')
@@ -1157,6 +1175,13 @@
       });
   }
 
+  // @beacon[
+  //   id=glimpse-path@getCartographerHeaderInfo,
+  //   role=getCartographerHeaderInfo,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Parse the first Path:/Root: header and LINE COUNT metadata used by extension-side F12 routing,
+  // ]
   function getCartographerHeaderInfo(noteText) {
     const lines = String(noteText || '').split('\n');
     let firstHeader = '';
@@ -1176,6 +1201,13 @@
     return { firstHeader, hasLineCount };
   }
 
+  // @beacon[
+  //   id=glimpse-path@pathHeaderLooksLikeFile,
+  //   role=pathHeaderLooksLikeFile,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Infer file-vs-folder semantics from a Path: header and visible node name for F12 action routing,
+  // ]
   function pathHeaderLooksLikeFile(firstHeader, nameText) {
     const header = String(firstHeader || '').trim();
     if (!header.startsWith('Path:')) return false;
@@ -1198,6 +1230,13 @@
     return false;
   }
 
+  // @beacon[
+  //   id=glimpse-path@classifyF12Target,
+  //   role=classifyF12Target,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Classify a hovered Workflowy node as folder/file/node from Path:/Root: and Cartographer note headers,
+  // ]
   function classifyF12Target(nameText, noteText) {
     const note = String(noteText || '');
     const { firstHeader, hasLineCount } = getCartographerHeaderInfo(note);
@@ -1228,6 +1267,13 @@
     }, timeoutMs);
   }
 
+  // @beacon[
+  //   id=glimpse-path@dispatchF12RefreshAction,
+  //   role=dispatchF12RefreshAction,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Route extension-side F12 actions to file vs folder refresh requests based on classified Path:/Root: semantics,
+  // ]
   function dispatchF12RefreshAction(state, cartoAsync) {
     if (!state || !state.uuid || !ws || ws.readyState !== WebSocket.OPEN) {
       return false;
@@ -1287,6 +1333,13 @@
     return true;
   }
 
+  // @beacon[
+  //   id=glimpse-path@getF12ActionOptions,
+  //   role=getF12ActionOptions,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Select available F12 actions from extension-side file/folder/node classification derived from Cartographer headers,
+  // ]
   function getF12ActionOptions(state) {
     if (!state) return [];
 
@@ -1399,6 +1452,13 @@
     return true;
   }
 
+  // @beacon[
+  //   id=glimpse-path@showF12ActionPopup,
+  //   role=showF12ActionPopup,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Top-level F12 popup entrypoint that classifies the current node using Path:/Root: semantics before presenting actions,
+  // ]
   function showF12ActionPopup(projectEl) {
     const uuid = projectEl && projectEl.getAttribute('projectid');
     if (!projectEl || !uuid) return false;
@@ -2919,6 +2979,14 @@
     }
   }
 
+  // @beacon[
+  //   id=glimpse-loading@standalone-dom-bootstrap,
+  //   role=standalone client DOM-ready bootstrap,
+  //   slice_labels=nexus--glimpse-extension,nexus-loading-flow,
+  //   kind=span,
+  //   show_span=true,
+  //   comment=Main standalone-client entrypoint: wait for DOM readiness, then initialize websocket connectivity plus UUID/F12/mutation helpers,
+  // ]
   // Wait for DOM to be ready, then connect and initialize helpers
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
@@ -2937,5 +3005,8 @@
   }
   
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] ✅ Standalone client loaded`);
+  // @beacon-close[
+  //   id=glimpse-loading@standalone-dom-bootstrap,
+  // ]
   
 })();
