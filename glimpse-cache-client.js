@@ -16,7 +16,7 @@
   //   show_span=true,
   //   comment=Standalone Electron client bootstrap constants: version log, websocket endpoint, reconnect timing, and feature flags,
   // ]
-  const GLIMPSE_VERSION = '3.13.0';
+  const GLIMPSE_VERSION = '3.14.0';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
@@ -1334,6 +1334,82 @@
   }
 
   // @beacon[
+  //   id=glimpse-path@findEnclosingFileFromNode,
+  //   role=findEnclosingFileFromNode,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Walk DOM ancestors from an AST/beacon node to find the enclosing FILE node by Path:/Root: header,
+  // ]
+  function findEnclosingFileFromNode(state) {
+    if (!state || !state.projectEl) return null;
+
+    // Walk up DOM ancestors looking for a node whose note has a Path: or Root: header.
+    // The first such ancestor is treated as the enclosing FILE/FOLDER target. This is
+    // the same heuristic used server-side in update_beacon_from_node and lets the user
+    // trigger the file-level bulk apply from any descendant AST/beacon node WITHOUT
+    // scrolling the file node back into view (a long-standing UX trap that causes the
+    // file refresh to delete tags on nodes that scrolled OFF the bottom of the viewport).
+    let current = state.projectEl.parentElement
+      && state.projectEl.parentElement.closest('div[projectid]');
+    while (current) {
+      const ancestorUuid = current.getAttribute('projectid');
+      if (!ancestorUuid) {
+        current = current.parentElement
+          && current.parentElement.closest('div[projectid]');
+        continue;
+      }
+
+      const ancestorName = extractNodeName(current);
+      const ancestorNote = extractNodeNote(current);
+      const ancestorType = classifyF12Target(ancestorName, ancestorNote);
+
+      if (ancestorType === 'file' || ancestorType === 'folder') {
+        return {
+          uuid: ancestorUuid,
+          name: ancestorName,
+          note: ancestorNote,
+          targetType: ancestorType,
+          projectEl: current,
+        };
+      }
+
+      current = current.parentElement
+        && current.parentElement.closest('div[projectid]');
+    }
+    return null;
+  }
+
+  // @beacon[
+  //   id=glimpse-path@dispatchF12BulkApplyForContainingFile,
+  //   role=dispatchF12BulkApplyForContainingFile,
+  //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
+  //   kind=ast,
+  //   comment=Run F12+2 bulk visible apply targeting the AST node's enclosing FILE - safe to invoke when the file node is scrolled out of view,
+  // ]
+  function dispatchF12BulkApplyForContainingFile(state) {
+    if (!state || !state.uuid || !ws || ws.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const fileState = findEnclosingFileFromNode(state);
+    if (!fileState) {
+      showTransientHoverText(
+        state.projectEl,
+        'Could not locate enclosing FILE/FOLDER ancestor (Path:/Root: header).',
+        6000,
+      );
+      return false;
+    }
+
+    // Use the SAME bulk-apply dispatcher rooted at the FILE node. Because Workflowy
+    // keeps ancestor DOM elements rendered regardless of scroll position, the
+    // extractVisibleActionTree call inside dispatchF12BulkApplyAction successfully
+    // captures the entire currently-visible subtree under the file -- the same payload
+    // you would get if you scrolled up and triggered F12+2 directly on the file node.
+    return dispatchF12BulkApplyAction(fileState);
+  }
+
+  // @beacon[
   //   id=glimpse-path@getF12ActionOptions,
   //   role=getF12ActionOptions,
   //   slice_labels=f9-f12-handlers,nexus--glimpse-extension,nexus-path-resolution-logic,
@@ -1417,6 +1493,13 @@
           detail: 'Detached CARTO_REFRESH after node update',
           disabled: false,
           onSelect: () => dispatchF12RefreshAction(state, true),
+        },
+        {
+          key: '3',
+          label: 'Bulk visible beacon/tag apply (containing file)',
+          detail: 'Run F12+2 against enclosing FILE without needing to scroll back to it',
+          disabled: !F12_BULK_VISIBLE_APPLY_ENABLED,
+          onSelect: () => dispatchF12BulkApplyForContainingFile(state),
         },
       ];
     }
