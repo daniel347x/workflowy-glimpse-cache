@@ -2367,8 +2367,9 @@
   // @beacon[
   //   id=auto-beacon@handleUuidPathResult-96tu,
   //   role=handleUuidPathResult,
-  //   slice_labels=ra-websocket,
+  //   slice_labels=ra-websocket,f9-f12-handlers,nexus--glimpse-extension,
   //   kind=ast,
+  //   comment=F2/F3 hover + UUID-Navigator click result handler. Receives {action:'uuid_path_result'} from server after _resolve_uuid_path_and_respond walks ancestor chain via /nodes-export cache. Not directly part of F12+3 timeout pipeline, but listed alongside other ws.onmessage dispatch handlers for completeness in the GUI handler beacon slice.,
   // ]
   function handleUuidPathResult(message) {
     if (isHoverRequest) {
@@ -2448,10 +2449,11 @@
   }
 
   // @beacon[
-  //   id=auto-beacon@handleRefreshCacheResult-ppk6,
-  //   role=handleRefreshCacheResult,
-  //   slice_labels=ra-websocket,
+  //   id=auto-beacon@handleRefreshCacheStatus-fxm12,
+  //   role=handleRefreshCacheStatus,
+  //   slice_labels=ra-websocket,f9-f12-handlers,nexus--glimpse-extension,ra-workflowy-cache,
   //   kind=ast,
+  //   comment=Cache-refresh STATUS handler (queued/running). Receives {action:'refresh_nodes_export_cache_status'} pushes from server during F12+3 step [1] preflight + step [4] quiescence wait. UI lifecycle: shows 'Refreshing /nodes-export cache...' in widget. NOTE: previously had a misplaced beacon block (id=...handleRefreshCacheResult-ppk6) anchored here — that beacon was for handleRefreshCacheResult below; corrected May 2026.,
   // ]
   function handleRefreshCacheStatus(message) {
     console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] refresh_nodes_export_cache_status:`, message);
@@ -2476,6 +2478,13 @@
     uuidNavigatorOutputEl.textContent = `Cache refresh status: ${message.status || 'unknown'}`;
   }
 
+  // @beacon[
+  //   id=auto-beacon@handleRefreshCacheResult-ppk6,
+  //   role=handleRefreshCacheResult,
+  //   slice_labels=ra-websocket,f9-f12-handlers,nexus--glimpse-extension,ra-workflowy-cache,
+  //   kind=ast,
+  //   comment=Cache-refresh RESULT handler (final completion). Receives {action:'refresh_nodes_export_cache_result'} after server-side cache settles. UI lifecycle: 'Cache refreshed successfully. nodes=N'. HYPOTHESIS (unverified): if this never fires after F12+3, the widget would show 'in progress' indefinitely — worth checking against the F12+3 timeout symptom Dan reports.,
+  // ]
   function handleRefreshCacheResult(message) {
     console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] refresh_nodes_export_cache_result:`, message);
     if (!uuidNavigatorOutputEl) return;
@@ -2495,6 +2504,13 @@
     uuidNavigatorOutputEl.textContent = `Cache refreshed successfully. nodes=${count}`;
   }
 
+  // @beacon[
+  //   id=auto-beacon@handleBulkApplyVisibleResult-bvr1,
+  //   role=handleBulkApplyVisibleResult,
+  //   slice_labels=ra-websocket,f9-f12-handlers,ra-bulk-visible-apply,nexus--glimpse-extension,ra-carto-jobs,
+  //   kind=ast,
+  //   comment=Bulk-apply RESULT handler. Receives {action:'bulk_apply_visible_nodes_result'} after _start_carto_bulk_visible_apply_job returns its job_id. UI lifecycle: 'Bulk apply queued: <job_id>'. This is the QUEUE acknowledgment only — actual completion would be reported separately via handleCartoJobsResult polling. HYPOTHESIS (unverified): the persistent 'in progress' widget state during F12+3 timeout may originate from continuing carto_list_jobs polls finding the job in 'running' state, not from this handler.,
+  // ]
   function handleBulkApplyVisibleResult(message) {
     console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] bulk_apply_visible_nodes_result:`, message);
     if (!uuidNavigatorOutputEl) return;
@@ -2519,6 +2535,13 @@
   }
 
   // Render CARTO_REFRESH jobs into the UUID widget (best-effort)
+  // @beacon[
+  //   id=auto-beacon@handleCartoJobsResult-cjr1,
+  //   role=handleCartoJobsResult,
+  //   slice_labels=ra-websocket,f9-f12-handlers,ra-bulk-visible-apply,ra-carto-jobs,nexus--glimpse-extension,
+  //   kind=ast,
+  //   comment=CARTO jobs polling RESULT handler. Renders active CARTO_REFRESH + CARTO_BULK_APPLY jobs in the widget with status/progress (X/Y files, phase, node counters). HYPOTHESIS (unverified, worth checking): this is a candidate UI source for the F12+3 'still running' false positive — if MCP appears to hang and the JSON job file isn't transitioned to status='completed', this handler would keep rendering the job as active until MCP restarts; the falsely-reports-failure symptom on MCP restart could originate here when a subsequent poll sees a 'failed' or absent job.,
+  // ]
   function handleCartoJobsResult(message) {
     if (!cartoJobsEl) return;
 
