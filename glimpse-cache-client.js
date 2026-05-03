@@ -2551,6 +2551,13 @@
     }
 
     const jobs = Array.isArray(message.jobs) ? message.jobs : [];
+    // VISIBILITY POLICY (May 2026 expanded):
+    //   - `completed` and `cancelled`: hide (these are the "clean exit" states).
+    //   - `failed`: keep visible (red status persists until cleared).
+    //   - `completed_with_warnings`: keep visible (yellow ⚠️ persists until cleared).
+    // Both `failed` and `completed_with_warnings` are also exempt from the
+    // server-side GC sweep, so they will persist on disk and remain renderable
+    // here until the user manually cleans them up.
     const active = jobs.filter((j) => {
       if (!j || typeof j !== 'object') return false;
       const status = String(j.status || 'unknown').toLowerCase();
@@ -2631,14 +2638,38 @@
         progressText += ` | ${extraBits.join(' | ')}`;
       }
 
+      // STATUS RENDERING (May 2026 expanded):
+      //   - `failed` -> red
+      //   - `completed_with_warnings` -> yellow/orange ⚠️ with warning count
+      //   - everything else -> default
       const labelSpan = document.createElement('span');
-      labelSpan.textContent = `[${status}] ${label}${progressText}`;
+      const statusLower = status.toLowerCase();
+      let statusBadge = `[${status}]`;
+      if (statusLower === 'completed_with_warnings') {
+        const warnCount = Number(job.warning_count || 0);
+        statusBadge = warnCount > 0
+          ? `⚠️ [completed_with_warnings: ${warnCount}]`
+          : '⚠️ [completed_with_warnings]';
+      }
+      labelSpan.textContent = `${statusBadge} ${label}${progressText}`;
+      if (statusLower === 'failed') {
+        labelSpan.style.color = '#f88';
+      } else if (statusLower === 'completed_with_warnings') {
+        labelSpan.style.color = '#fc6'; // yellow/orange for warnings
+      }
       labelSpan.style.flex = '1';
       labelSpan.style.overflow = 'hidden';
       labelSpan.style.textOverflow = 'ellipsis';
 
       const canCancelStatus = status.toLowerCase();
-      const cancellable = canCancelStatus !== 'completed' && canCancelStatus !== 'failed' && canCancelStatus !== 'cancelled';
+      // Terminal states (no point in offering a CANCEL button):
+      //   completed, cancelled, failed, completed_with_warnings
+      const cancellable = (
+        canCancelStatus !== 'completed'
+        && canCancelStatus !== 'failed'
+        && canCancelStatus !== 'cancelled'
+        && canCancelStatus !== 'completed_with_warnings'
+      );
 
       line.appendChild(labelSpan);
 
