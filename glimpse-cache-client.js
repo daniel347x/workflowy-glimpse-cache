@@ -16,7 +16,7 @@
   //   show_span=true,
   //   comment=Standalone Electron client bootstrap constants: version log, websocket endpoint, reconnect timing, and feature flags,
   // ]
-  const GLIMPSE_VERSION = '3.14.0';
+  const GLIMPSE_VERSION = '3.15.0';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
@@ -2163,6 +2163,90 @@
       }
     });
 
+    // ---------------------------------------------------------------------
+    // Cache-refresh skip toggle (Dan, May 2026)
+    //
+    // When ON, server-side pre+post /nodes-export cache refreshes are
+    // bypassed for the duration of the timer (default 60s). Use this when
+    // firing 3+ F12+1 ops in parallel on non-overlapping files to avoid
+    // serializing them on the 60s Workflowy rate-limit between refreshes.
+    //
+    // Default: OFF (safeties ON). Auto-reverts to OFF when the timer
+    // expires. Click while ON to cancel early. Server state also resets
+    // to OFF on MCP restart, which is the desired safe default.
+    // ---------------------------------------------------------------------
+    const skipToggleBtn = document.createElement('button');
+    let skipToggleActive = false;
+    let skipToggleCountdownInterval = null;
+    let skipToggleDeadlineMs = 0;
+    const SKIP_TOGGLE_DURATION_SEC = 60;
+
+    function renderSkipToggleLabel() {
+      if (!skipToggleActive) {
+        skipToggleBtn.textContent = '\u{1F6AB} Skip refresh: OFF';
+        skipToggleBtn.style.color = '#ccc';
+        return;
+      }
+      const remainingMs = Math.max(0, skipToggleDeadlineMs - Date.now());
+      const remainingSec = Math.ceil(remainingMs / 1000);
+      skipToggleBtn.textContent = `\u{1F6AB} Skip refresh: ON (${remainingSec}s)`;
+      skipToggleBtn.style.color = '#ff9966';
+      if (remainingMs <= 0) {
+        // Local auto-revert (server has also auto-expired by now).
+        skipToggleActive = false;
+        if (skipToggleCountdownInterval) {
+          clearInterval(skipToggleCountdownInterval);
+          skipToggleCountdownInterval = null;
+        }
+        renderSkipToggleLabel();
+      }
+    }
+
+    skipToggleBtn.style.background = 'transparent';
+    skipToggleBtn.style.border = 'none';
+    skipToggleBtn.style.cursor = 'pointer';
+    skipToggleBtn.style.fontSize = '10px';
+    skipToggleBtn.style.padding = '0';
+    skipToggleBtn.style.margin = '0 0 4px 8px';
+    renderSkipToggleLabel();
+
+    skipToggleBtn.addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (uuidNavigatorOutputEl) {
+          uuidNavigatorOutputEl.style.display = 'block';
+          uuidNavigatorOutputEl.textContent = 'WebSocket not connected (cannot set skip toggle).';
+        }
+        return;
+      }
+
+      const newEnabled = !skipToggleActive;
+      const payload = {
+        action: 'set_cache_refresh_skip',
+        enabled: newEnabled,
+        duration_seconds: SKIP_TOGGLE_DURATION_SEC,
+      };
+      console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Sending set_cache_refresh_skip:`, payload);
+      ws.send(JSON.stringify(payload));
+
+      // Optimistically update local UI state; the server will confirm via
+      // set_cache_refresh_skip_result but the UX is snappier this way.
+      skipToggleActive = newEnabled;
+      if (newEnabled) {
+        skipToggleDeadlineMs = Date.now() + SKIP_TOGGLE_DURATION_SEC * 1000;
+        if (skipToggleCountdownInterval) {
+          clearInterval(skipToggleCountdownInterval);
+        }
+        skipToggleCountdownInterval = setInterval(renderSkipToggleLabel, 1000);
+      } else {
+        skipToggleDeadlineMs = 0;
+        if (skipToggleCountdownInterval) {
+          clearInterval(skipToggleCountdownInterval);
+          skipToggleCountdownInterval = null;
+        }
+      }
+      renderSkipToggleLabel();
+    });
+
     const output = document.createElement('pre');
     output.style.margin = '0';
     output.style.marginTop = '4px';
@@ -2202,6 +2286,7 @@
     container.appendChild(header);
     container.appendChild(row);
     container.appendChild(refreshBtn);
+    container.appendChild(skipToggleBtn);
     container.appendChild(jobsHeader);
     container.appendChild(jobsContainer);
     container.appendChild(output);
