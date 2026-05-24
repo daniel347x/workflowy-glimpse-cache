@@ -381,14 +381,33 @@
     console.log('[GLIMPSE Cache] 🔍 Extracting DOM tree for node:', nodeId);
     
     try {
-      const rootElement = document.querySelector(`div[projectid="${nodeId}"]`);
-      
-      if (!rootElement) {
-        console.warn('[GLIMPSE Cache] ❌ Node not found in DOM:', nodeId);
-        return {
-          success: false,
-          error: `Node ${nodeId} not found in DOM (may be collapsed or not loaded)`
-        };
+      // Resolve "current zoom" sentinel (or missing UUID) to whatever Workflowy
+      // is currently zoomed into. Workflowy tags the currently-zoomed-in node's
+      // top-level <div projectid="..."> with the CSS class `root`; other
+      // visible bullets carry `project` but not `root`. This lets the agent
+      // call workflowy_glimpse() with no UUID and always get exactly what the
+      // user sees, which is the natural Workflowy workflow (zoom in, GLIMPSE).
+      let rootElement;
+      if (!nodeId || nodeId === '__current_zoom__') {
+        rootElement = document.querySelector('div.project.root[projectid]');
+        if (!rootElement) {
+          console.warn('[GLIMPSE Cache] ❌ Could not find currently-zoomed-in root in DOM');
+          return {
+            success: false,
+            error: 'No currently-zoomed-in root found in DOM (expected div.project.root[projectid])'
+          };
+        }
+        nodeId = rootElement.getAttribute('projectid');
+        console.log('[GLIMPSE Cache] 🎯 Auto-resolved current zoom to:', nodeId);
+      } else {
+        rootElement = document.querySelector(`div[projectid="${nodeId}"]`);
+        if (!rootElement) {
+          console.warn('[GLIMPSE Cache] ❌ Node not found in DOM:', nodeId);
+          return {
+            success: false,
+            error: `Node ${nodeId} not found in DOM (may be collapsed or not loaded)`
+          };
+        }
       }
       
       const rootName = extractNodeNameHtml(rootElement);
