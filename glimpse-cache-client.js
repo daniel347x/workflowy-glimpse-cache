@@ -16,7 +16,7 @@
   //   show_span=true,
   //   comment=Standalone Electron client bootstrap constants: version log, websocket endpoint, reconnect timing, and feature flags,
   // ]
-  const GLIMPSE_VERSION = '3.15.0';
+  const GLIMPSE_VERSION = '3.15.1';
   console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] Standalone client initializing...`);
   
   let ws = null;
@@ -959,6 +959,11 @@
   let cartoJobsEl = null;
   // Polling interval handle for CARTO job status
   let cartoJobsInterval = null;
+  // Watchdog for /nodes-export cache refresh status. If the terminal
+  // result WebSocket message is dropped/missed, do not leave the widget
+  // claiming "Refreshing..." forever.
+  let refreshCacheStatusTimeout = null;
+  const REFRESH_CACHE_STATUS_STALE_MS = 180000;
   // Tracks whether the next uuid_path_result should be rendered in FULL
   // (verbose) mode rather than compact mode.
   let uuidNavigatorFullMode = false;
@@ -2179,6 +2184,7 @@
       if (uuidNavigatorOutputEl) {
         uuidNavigatorOutputEl.style.display = 'block';
         uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache...';
+        armRefreshCacheStatusWatchdog('manual refresh button');
       }
     });
 
@@ -2559,6 +2565,29 @@
   //   kind=ast,
   //   comment=Cache-refresh STATUS handler (queued/running). Receives {action:'refresh_nodes_export_cache_status'} pushes from server during F12+3 step [1] preflight + step [4] quiescence wait. UI lifecycle: shows 'Refreshing /nodes-export cache...' in widget. NOTE: previously had a misplaced beacon block (id=...handleRefreshCacheResult-ppk6) anchored here — that beacon was for handleRefreshCacheResult below; corrected May 2026.,
   // ]
+  function clearRefreshCacheStatusWatchdog() {
+    if (refreshCacheStatusTimeout) {
+      clearTimeout(refreshCacheStatusTimeout);
+      refreshCacheStatusTimeout = null;
+    }
+  }
+
+  function armRefreshCacheStatusWatchdog(label) {
+    clearRefreshCacheStatusWatchdog();
+    refreshCacheStatusTimeout = setTimeout(() => {
+      refreshCacheStatusTimeout = null;
+      if (!uuidNavigatorOutputEl) return;
+      const current = uuidNavigatorOutputEl.textContent || '';
+      if (!current.includes('Refreshing /nodes-export cache')) return;
+      uuidNavigatorOutputEl.style.display = 'block';
+      uuidNavigatorOutputEl.textContent = (
+        `Cache refresh status stale after ${Math.round(REFRESH_CACHE_STATUS_STALE_MS / 1000)}s ` +
+        `(${label || 'no terminal result received'}). ` +
+        'If needed, click Refresh cache to force a fresh status/result.'
+      );
+    }, REFRESH_CACHE_STATUS_STALE_MS);
+  }
+
   function handleRefreshCacheStatus(message) {
     console.log(`[GLIMPSE Cache v${GLIMPSE_VERSION}] refresh_nodes_export_cache_status:`, message);
     if (!uuidNavigatorOutputEl) return;
@@ -2572,13 +2601,16 @@
     const status = String(message.status || '').toLowerCase();
     if (status === 'queued') {
       uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache (queued)...';
+      armRefreshCacheStatusWatchdog('queued');
       return;
     }
     if (status === 'running') {
       uuidNavigatorOutputEl.textContent = 'Refreshing /nodes-export cache...';
+      armRefreshCacheStatusWatchdog('running');
       return;
     }
 
+    clearRefreshCacheStatusWatchdog();
     uuidNavigatorOutputEl.textContent = `Cache refresh status: ${message.status || 'unknown'}`;
   }
 
@@ -2599,8 +2631,18 @@
       uuidNavigatorToggleEl.textContent = '▾';
     }
 
+    clearRefreshCacheStatusWatchdog();
+
     if (!message.success) {
       uuidNavigatorOutputEl.textContent = `Cache refresh failed: ${message.error || 'Unknown error'}`;
+      return;
+    }
+
+    if (message.skipped) {
+      const remaining = message.skip_remaining_seconds != null
+        ? ` (~${Math.ceil(Number(message.skip_remaining_seconds) || 0)}s remaining)`
+        : '';
+      uuidNavigatorOutputEl.textContent = `Cache refresh skipped${remaining}: ${message.skip_reason || message.reason || 'skip toggle active'}`;
       return;
     }
 
